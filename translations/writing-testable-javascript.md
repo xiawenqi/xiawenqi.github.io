@@ -117,4 +117,135 @@ $(function () {
 *程序状态
 *设置和粘合代码来把所有代码整合在一起可以执行。
 
+在上面的实现中，这四类操作交织在一起，在这行我们正在进行页面呈现， 两行之后就开始和服务器通信。
+
+<img src="http://d.alistapart.com/375/code-lines.png" alt="Code Lines">
+
+虽然我们可以为它写集成测试--我们也应该写--为这些代码写单元测试却非常困难。在功能性测试中，我们作出诸如“当用户搜索关键词，她应当看见正确的结果”的断言， 我们却无法更加具体。如果哪里出了问题，我们只能跟踪代码找到错误的地方，而功能性测试在这时候没什么作用。
+
+如果我们重新思考如何编写代码， 那么， 我们就可以编写单元测试帮我们更好的找到出问题的地方， 而且也写出更容易复用，维护和扩展的代码。
+
+我们的新代码会遵守以下原则
+
+*将一组操作作为一个独立的对象，只执行四种功能之一，并且完全不知道其他对象的结构， 以此避免交织的代码。
+*支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境
+*保持对象代码的简洁，这有助于我们保持测试简单以及代码可读
+*用构造函数来创建实例。这让我们可以为了测试的需求“干净地”复制每段代码。
+
+作为开始，我们要先找到从哪里开始分解我们的代码。我们有三块用来做展现和交互： 搜索表单，搜索结果，以及“喜欢”框
+
+<img src="http://d.alistapart.com/375/app-views.png" alt="Application Views">
+
+同样会有一块代码用来从服务器取数据，以及另外一块用来将所有的代码放在一起。
+
+让我们先看看代码中最简单的一块： Like框。在初始的版本中，这些代码用来更新Like框： 
+
+```
+var liked = $('#liked');
+
+var resultsList = $('#results');
+
+
+// ...
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.find( '.no-results' ).remove();
+
+  $('<li>', { text: name }).appendTo(liked);
+
+});
+
+```
+
+搜索结果块完全和Like框的代码纠缠在了一起，需要知道它的很多的标签结构。 一个更好的， 更易测试的方法是创建一个Likes对象用来执行和Like框相关的DOM操作：
+
+```
+var Likes = function (el) {
+  this.el = $(el);
+  return this;
+};
+
+Likes.prototype.add = function (name) {
+  this.el.find('.no-results').remove();
+  $('<li>', { text: name }).appendTo(this.el);
+};
+```
+
+这段代码提供了一个用来创建新Like框实例的构造函数。这个实例会有个.add()方法用来添加搜索结果。这样我们就可以为它写单元测试了。
+
+```
+
+var ul;
+
+setup(function(){
+  ul = $('<ul><li class="no-results"></li></ul>');
+});
+
+test('constructor', function () {
+  var l = new Likes(ul);
+  assert(l);
+});
+
+test('adding a name', function () {
+  var l = new Likes(ul);
+  l.add('Brendan Eich');
+
+  assert.equal(ul.find('li').length, 1);
+  assert.equal(ul.find('li').first().html(), 'Brendan Eich');
+  assert.equal(ul.find('li.no-results').length, 0);
+});
+
+```
+
+没有那么难，是吗？ 这里我们使用[ Mocha](http://visionmedia.github.io/mocha/)作为测试框架， [Chai](http://chaijs.com/)作为测试库。 Mocha提供了`test`和`setup`函数; Chai提供了assert函数。还有许多其他可选的测试框架和库， 但这里为了说明作用， 这两个库足够了。在实践中可以选择最适合自己和项目的: 除了Mocha， [Qunit](http://qunitjs.com/)很流行， [Intern]是一个很有前景的框架。
+
+我们的测试代码先创建了一个用来作为Like框容器的ul。 然后执行了两个测试： 一个用来测试我们是否成功创建了Like框，另一个用来测试 `.add()` 的正确性。 有了这些测试，我们就可以放心地重构Like框相关的代码， 并且知道有没有对现有功能造成破坏。
+
+现在我们的客户端代码可以改成这样： 
+
+```
+var liked = new Likes('#liked');
+var resultsList = $('#results');
+
+
+
+// ...
+
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.add(name);
+});
+```
+
+搜索结果模块要比Like框复杂， 让我们也试着重构一下。 就像我们在Like框上添加了个`add()`方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要添加新结果的方法，
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
