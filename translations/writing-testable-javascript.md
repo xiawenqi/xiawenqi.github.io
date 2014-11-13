@@ -102,24 +102,18 @@ $(function () {
 让单元测试变得困难的包括以下四点：
 
 * 结构松散; 几乎全部操作都发生在 `$(document).ready()` 的回调函数中， 这是个匿名函数，没有关于它的接口提供测试。
-
 * 复杂的函数; 如果一个函数就像提交处理函数一样超过10行，那么很可能它要执行的操作过多。
-
 * 隐藏起来或者共享的程序状态： 例如 `pending ` 是在闭包中的变量，那就无法测试pending这个状态是不是正确的。
-
 * 紧密的耦合; 例如 一个 `$.ajax `成功的回调函数不应该直接操作DOM。
 
 ##组织我们的代码
 
 解决这个问题的第一步是让我们的代码更少的像面条一样扭在一起， 将其按功能分解到不同的区域：
 
-*数据展现和用户交互
-
-*数据管理和持久化
-
-*程序状态
-
-*设置和粘合代码来把所有代码整合在一起可以执行。
+* 数据展现和用户交互
+* 数据管理和持久化
+* 程序状态
+* 设置和粘合代码来把所有代码整合在一起可以执行。
 
 在上面的实现中，这四类操作交织在一起，在这行我们正在进行页面呈现， 两行之后就开始和服务器通信。
 
@@ -131,13 +125,10 @@ $(function () {
 
 我们的新代码会遵守以下原则
 
-*将一组操作作为一个独立的对象，只执行四种功能之一，并且完全不知道其他对象的结构， 以此避免交织的代码。
-
-*支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境
-
-*保持对象代码的简洁，这有助于我们保持测试简单以及代码可读
-
-*用构造函数来创建实例。这让我们可以为了测试的需求“干净地”复制每段代码。
+* 将一组操作作为一个独立的对象，只执行四种功能之一，并且完全不知道其他对象的结构， 以此避免交织的代码。
+* 支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境
+* 保持对象代码的简洁，这有助于我们保持测试简单以及代码可读
+* 用构造函数来创建实例。这让我们可以为了测试的需求“干净地”复制每段代码。
 
 作为开始，我们要先找到从哪里开始分解我们的代码。我们有三块用来做展现和交互： 搜索表单，搜索结果，以及“喜欢”框
 
@@ -497,11 +488,9 @@ $(function() {
 
 这篇文章讨论了Javascript测试的一些基本知识。但是如果你想了解更多，可以参考：
 
-*[我的报告](http://lanyrd.com/2012/full-frontal/sztqh/), 来自2012年伦敦Brighton的Full Frontal会议。
-
-*[Grunt](http://gruntjs.com/)用来进行自动化测试和许多其他任务的工具。
-
-*[编写可测试的Javascript代码](http://www.amazon.com/Test-Driven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&qid=1366506174&sr=8-1&keywords=test+driven+javascript+development) 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。
+* [我的报告](http://lanyrd.com/2012/full-frontal/sztqh/), 来自2012年伦敦Brighton的Full Frontal会议。
+* [Grunt](http://gruntjs.com/)用来进行自动化测试和许多其他任务的工具。
+* [编写可测试的Javascript代码](http://www.amazon.com/Test-Driven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&qid=1366506174&sr=8-1&keywords=test+driven+javascript+development) 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。
 
 ##关于作者
 ###Rebecca Murphey
