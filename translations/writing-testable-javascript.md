@@ -227,25 +227,273 @@ resultsList.on('click', '.like', function (e) {
 });
 ```
 
-搜索结果模块要比Like框复杂， 让我们也试着重构一下。 就像我们在Like框上添加了个`add()`方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要添加新结果的方法，
+搜索结果模块要比Like框复杂， 让我们也试着重构一下。 就像我们在Like框上添加了个`add()`方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要添加新结果的方法，还有一个可以通知程序其他部分搜索结果发生了什么的代码--例如，有人喜欢了一个搜索结果。
+
+```
+var SearchResults = function (el) {
+  this.el = $(el);
+  this.el.on( 'click', '.btn.like', _.bind(this._handleClick, this) );
+};
+
+SearchResults.prototype.setResults = function (results) {
+  var templateRequest = $.get('people-detailed.tmpl');
+  templateRequest.then( _.bind(this._populate, this, results) );
+};
+
+SearchResults.prototype._handleClick = function (evt) {
+  var name = $(evt.target).closest('li.result').attr('data-name');
+  $(document).trigger('like', [ name ]);
+};
+
+SearchResults.prototype._populate = function (results, tmpl) {
+  var html = _.template(tmpl, { people: results });
+  this.el.html(html);
+};
+```
+
+现在， 我们原来的代码就可以改成： 
+
+```
+var liked = new Likes('#liked');
+var resultsList = new SearchResults('#results');
 
 
+// ...
 
 
+$(document).on('like', function (evt, name) {
+  liked.add(name);
+})
+
+```
+
+这要比原来的实现简洁多了， 因为我们将`document`作为一个传递消息的枢纽，组件之间就可以在不知道彼此结构的情况下进行沟通。（在一个商业的APP中，我们一般会使用诸如[Backbone](http://backbonejs.org/)或者是[RSVP](https://github.com/tildeio/rsvp.js)这样的框架来管理事件，这里我们用document来确保简洁。）我们也将复杂的操作--诸如从被喜欢的搜索结果中找出人名--交给SearchResults对象，而非让它把我们的代码整的乱七八糟。最好的是：现在我们同样可以为SearchResults编写单元测试了：
+
+```
+var ul;
+var data = [ /* fake data here */ ];
+
+setup(function () {
+  ul = $('<ul><li class="no-results"></li></ul>');
+});
+
+test('constructor', function () {
+  var sr = new SearchResults(ul);
+  assert(sr);
+});
+
+test('display received results', function () {
+  var sr = new SearchResults(ul);
+  sr.setResults(data);
+
+  assert.equal(ul.find('.no-results').length, 0);
+  assert.equal(ul.find('li.result').length, data.length);
+  assert.equal(
+    ul.find('li.result').first().attr('data-name'),
+    data[0].name
+  );
+});
+
+test('announce likes', function() {
+  var sr = new SearchResults(ul);
+  var flag;
+  var spy = function () {
+    flag = [].slice.call(arguments);
+  };
+
+  sr.setResults(data);
+  $(document).on('like', spy);
+
+  ul.find('li').first().find('.like.btn').click();
+
+  assert(flag, 'event handler called');
+  assert.equal(flag[1], data[0].name, 'event handler receives data' );
+});
+
+```
+
+和服务器的通信怎样模块化同样值得深思。初始的代码直接调用了一个`$.ajax()`请求, 而且回调函数也在直接对DOM进行操作：
+
+```
+$.ajax('/data/search.json', {
+  data : { q: query },
+  dataType : 'json',
+  success : function( data ) {
+    loadTemplate('people-detailed.tmpl').then(function(t) {
+      var tmpl = _.template( t );
+      resultsList.html( tmpl({ people : data.results }) );
+      pending = false;
+    });
+  }
+});
+```
+
+同样地， 很难为这块代码编写单元测试， 短短的几行执行了太多的操作。我们可以将数据部分重新构造为一个对象：
+
+```
+var SearchData = function () { };
+
+SearchData.prototype.fetch = function (query) {
+  var dfd;
+
+  if (!query) {
+    dfd = $.Deferred();
+    dfd.resolve([]);
+    return dfd.promise();
+  }
+
+  return $.ajax( '/data/search.json', {
+    data : { q: query },
+    dataType : 'json'
+  }).pipe(function( resp ) {
+    return resp.results;
+  });
+};
+```
+
+现在， 可以修改我们获取数据部分的代码了：
+```
+var resultsList = new SearchResults('#results');
+
+var searchData = new SearchData();
+
+// ...
+
+searchData.fetch(query).then(resultsList.setResults);
+```
+
+我们再一次对代码成功进行了简化， 并且将数据操作的复杂性封装在了SearchData对象里， 而非放在主程序中。
+现在可以测试搜索接口了， 尽管在测试时有一些需要注意的地方。
+
+第一点是我们不想直接和服务器进行交互--否则我们就要重新进行集成测试， 而且我们都是负责任的程序员， 所以服务器的代码肯定被测试过了，不是吗？ 相应地， 我们“模仿”和服务器的交互，通过[Sinon](http://sinonjs.org/)。第二点是我们同样要测试一些极端情况， 例如空字符串搜索。
+
+```
+test('constructor', function () {
+  var sd = new SearchData();
+  assert(sd);
+});
+
+suite('fetch', function () {
+  var xhr, requests;
+
+  setup(function () {
+    requests = [];
+    xhr = sinon.useFakeXMLHttpRequest();
+    xhr.onCreate = function (req) {
+      requests.push(req);
+    };
+  });
+
+  teardown(function () {
+    xhr.restore();
+  });
+
+  test('fetches from correct URL', function () {
+    var sd = new SearchData();
+    sd.fetch('cat');
+
+    assert.equal(requests[0].url, '/data/search.json?q=cat');
+  });
+
+  test('returns a promise', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+
+    assert.isFunction(req.then);
+  });
+
+  test('no request if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    assert.equal(requests.length, 0);
+  });
+
+  test('return a promise even if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+
+    assert.isFunction( req.then );
+  });
+
+  test('no query promise resolves with empty array', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    var spy = sinon.spy();
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], []);
+  });
+
+  test('returns contents of results property of the response', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+    var spy = sinon.spy();
+
+    requests[0].respond(
+      200, { 'Content-type': 'text/json' },
+      JSON.stringify({ results: [ 1, 2, 3 ] })
+    );
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], [ 1, 2, 3 ]);
+  });
+});
+```
+
+出于简洁性的考虑， 我没有讨论搜索表单的重构， 也简化了些其他的重构和测试。 但是你可以在[这里](https://github.com/rmurphey/testable-javascript)看到完整的版本。
+
+当我们用可测试的js模式重写了程序之后， 一切变得简洁多了：
+
+```
+$(function() {
+  var pending = false;
+
+  var searchForm = new SearchForm('#searchForm');
+  var searchResults = new SearchResults('#results');
+  var likes = new Likes('#liked');
+  var searchData = new SearchData();
+
+  $(document).on('search', function (event, query) {
+    if (pending) { return; }
+
+    pending = true;
+
+    searchData.fetch(query).then(function (results) {
+      searchResults.setResults(results);
+      pending = false;
+    });
+
+    searchResults.pending();
+  });
+
+  $(document).on('like', function (evt, name) {
+    likes.add(name);
+  });
+});
+```
+
+比获得简洁的代码更重要的是， 现在我们完整的测试了代码。  这样我们就可以放心大胆地重构代码而不用怕会破坏之前写好的成果。 当出现新情况时， 我们甚至可以编写新的
+测试用例， 然后编写代码来通过它。
 
 
+##从长期来说 测试让生活更美好
 
+可能你读到这里，然后突然出现个问题： “等一等！ 你想让我为了同样的功能写更多的代码？”
 
+事实是， 当你在互联网上进行创造时， 有些东西是躲不开的。你会花时间去设计解决问题的方法。你会测试你的解决方案， 或者是通过在浏览器里点击查看反应， 或者是通过自动化测试， 或者是--战栗--让你的用户在生产环境中替你做测试。你会修改你的代码， 而其他人会使用你的代码。 而最终： 你的代码会有bug， 无论你写了多少测试。
 
+关于测试的一个事实是尽管在开始时会多花费点时间， 长远来看它却可以节省时间。当你的测试用例发现了一个bug时，你会觉得庆幸。当你有一个运行的系统证明你的bug修改确实有用时， 你会觉得感激。
 
+##参考资料
 
+这篇文章讨论了Javascript测试的一些基本知识。但是如果你想了解更多，可以参考：
 
+*[我的报告](http://lanyrd.com/2012/full-frontal/sztqh/), 来自2012年伦敦Brighton的Full Frontal会议。
+*[Grunt](http://gruntjs.com/)用来进行自动化测试和许多其他任务的工具。
+*[编写可测试的Javascript代码](http://www.amazon.com/Test-Driven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&qid=1366506174&sr=8-1&keywords=test+driven+javascript+development) 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。
 
-
-
-
-
-
-
-
-
+##关于作者
+###Rebecca Murphey
+Rebecca Murphey is a senior software engineer at Bazaarvoice and a frequent speaker on the topics of code organization and best practices at conferences around the world. She’s also the creator of the TXJS conference, the author of the learning site jQuery Fundamentals, a contributor to the jQuery Cookbook from O’Reilly Media, and a technical reviewer for Effective JavaScript by Dave Herman. She blogs at [rmurphey.com](http://lanyrd.com/2012/full-frontal/sztqh/), tweets as [@rmurphey](https://twitter.com/rmurphey), and lives in Durham, NC, with her partner.
