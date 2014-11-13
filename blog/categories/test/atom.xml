@@ -1,0 +1,646 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Test | Blogs.]]></title>
+  <link href="http://xiawenqi.github.io//blog/categories/test/atom.xml" rel="self"/>
+  <link href="http://xiawenqi.github.io//"/>
+  <updated>2014-11-13T19:55:35+08:00</updated>
+  <id>http://xiawenqi.github.io//</id>
+  <author>
+    <name><![CDATA[Xia Wenqi]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Writing Testable Javascript]]></title>
+    <link href="http://xiawenqi.github.io//blog/2014/11/13/writing-testable-javascript/"/>
+    <updated>2014-11-13T19:35:56+08:00</updated>
+    <id>http://xiawenqi.github.io//blog/2014/11/13/writing-testable-javascript</id>
+    <content type="html"><![CDATA[<h1>编写可测试的Javascript</h1>
+
+<p>by REBECCA MURPHEY
+原文地址： <a href="http://alistapart.com/article/writing-testable-javascript" title="writing testable javascript">writing-testable-javascript</a></p>
+
+<p>我们都有过这样的经验：写几行Javscript代码来实现一个小功能，然后随着需求变化变成了十几行，然后二十几行，然后更多。在这个过程中，函数渐渐地接受更多的参数，条件判断渐渐地接受更多的条件。然后有一天，代码出了问题，我们开始从一堆杂乱的代码中找出bug，解决问题。</p>
+
+<p>当我们要求客户端代码执行越来越多的功能时 &ndash;实际上，现在整个应用程序很大一部分都是在客户端实现的&ndash; 有两件事情是可以确定的。1.我们无法通过敲敲键盘， 点点鼠标， 就确定功能实现无误， 而要通过自动化测试确保代码的正确性。2. 为了让代码便于自动化测试，或许我们需要稍微改变下写代码的方式。</p>
+
+<p>虽然我们知道自动化测试很好，但是我们大部分现在都只能针对代码写集成测试。集成测试可以确保系统整体运行正常，但是无法帮我们确认单元功能的正常。</p>
+
+<p>这就需要我们编写单元测试了。而编写单元测试会一直纠结直到我们开始<em>编写可测试的JavaScript</em>。</p>
+
+<h2>单元VS集成： 区别在哪？</h2>
+
+<p>编写集成测试代码通常都非常直接：我们写代码来描述期待用户什么样的输入，以及用户应该期待她看见什么。
+<a href="http://docs.seleniumhq.org/">Selenium</a>是一个流行的自动化浏览器测试工具。<a href="https://github.com/jnicklas/capybara">Capybara</a>让在Ruby下使用Selenium非常容易。针对许多其他的语言也有其专门的工具。</p>
+
+<p>这里是针对一个搜索引擎一个模块的集成测试：</p>
+
+<pre><code>def test_search
+  fill_in('q', :with =&gt; 'cat')
+  find('.btn').click
+  assert( find('#results li').has_content?('cat'), 'Search results are shown' )
+  assert( page.has_no_selector?('#results li.no-results'), 'No results is not shown' )
+end
+</code></pre>
+
+<p>与集成测试关注的是用户和程序的交互，单元测试仅仅关注小段代码的行为：</p>
+
+<blockquote><p>当我传递给一个函数一定的参数时，我有没有获得期望的返回值？</p></blockquote>
+
+<p>用传统方式写的代码可能会非常难写对应的单元测试用例&ndash; 而且很难维护，调试，扩展。但是如果我们写代码时已经构思好了将要写的单元测试， 我们可能会发现不仅编写单元测试变得很容易，我们的代码质量也会随之提高！</p>
+
+<p>要知道为什么我这么说，我们先看个例子：</p>
+
+<p><img src="http://d.alistapart.com/375/app.png" alt="Srchr"></p>
+
+<p>当用户输入一个搜索词时，程序会发送一个XHR请求到服务器获取相应数据。服务器返回了JSON格式的数据后，客户端就会解析数据并且用模板展示在页面上。用户可以点击一条搜索结果来表明他“喜欢(likes)”该结果，当该事件发生时，他Like的人名会被添加到右侧的Like列表上。</p>
+
+<p>一个“传统”的JavaScript实现方式可能是这个样子的：
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+<span class='line-number'>39</span>
+<span class='line-number'>40</span>
+<span class='line-number'>41</span>
+<span class='line-number'>42</span>
+<span class='line-number'>43</span>
+<span class='line-number'>44</span>
+<span class='line-number'>45</span>
+<span class='line-number'>46</span>
+<span class='line-number'>47</span>
+<span class='line-number'>48</span>
+<span class='line-number'>49</span>
+<span class='line-number'>50</span>
+<span class='line-number'>51</span>
+<span class='line-number'>52</span>
+<span class='line-number'>53</span>
+<span class='line-number'>54</span>
+<span class='line-number'>55</span>
+<span class='line-number'>56</span>
+<span class='line-number'>57</span>
+<span class='line-number'>58</span>
+<span class='line-number'>59</span>
+<span class='line-number'>60</span>
+<span class='line-number'>61</span>
+<span class='line-number'>62</span>
+<span class='line-number'>63</span>
+<span class='line-number'>64</span>
+<span class='line-number'>65</span>
+<span class='line-number'>66</span>
+<span class='line-number'>67</span>
+<span class='line-number'>68</span>
+<span class='line-number'>69</span>
+<span class='line-number'>70</span>
+<span class='line-number'>71</span>
+<span class='line-number'>72</span>
+<span class='line-number'>73</span>
+<span class='line-number'>74</span>
+<span class='line-number'>75</span>
+<span class='line-number'>76</span>
+<span class='line-number'>77</span>
+<span class='line-number'>78</span>
+<span class='line-number'>79</span>
+<span class='line-number'>80</span>
+<span class='line-number'>81</span>
+<span class='line-number'>82</span>
+<span class='line-number'>83</span>
+<span class='line-number'>84</span>
+<span class='line-number'>85</span>
+<span class='line-number'>86</span>
+<span class='line-number'>87</span>
+<span class='line-number'>88</span>
+<span class='line-number'>89</span>
+<span class='line-number'>90</span>
+<span class='line-number'>91</span>
+<span class='line-number'>92</span>
+<span class='line-number'>93</span>
+<span class='line-number'>94</span>
+<span class='line-number'>95</span>
+<span class='line-number'>96</span>
+<span class='line-number'>97</span>
+<span class='line-number'>98</span>
+<span class='line-number'>99</span>
+<span class='line-number'>100</span>
+<span class='line-number'>101</span>
+<span class='line-number'>102</span>
+<span class='line-number'>103</span>
+<span class='line-number'>104</span>
+<span class='line-number'>105</span>
+<span class='line-number'>106</span>
+<span class='line-number'>107</span>
+<span class='line-number'>108</span>
+<span class='line-number'>109</span>
+<span class='line-number'>110</span>
+<span class='line-number'>111</span>
+<span class='line-number'>112</span>
+<span class='line-number'>113</span>
+<span class='line-number'>114</span>
+<span class='line-number'>115</span>
+<span class='line-number'>116</span>
+<span class='line-number'>117</span>
+<span class='line-number'>118</span>
+<span class='line-number'>119</span>
+<span class='line-number'>120</span>
+<span class='line-number'>121</span>
+<span class='line-number'>122</span>
+<span class='line-number'>123</span>
+<span class='line-number'>124</span>
+<span class='line-number'>125</span>
+<span class='line-number'>126</span>
+<span class='line-number'>127</span>
+<span class='line-number'>128</span>
+<span class='line-number'>129</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>var tmplCache = {};&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;function loadTemplate (name) {
+</span><span class='line'>  if (!tmplCache[name]) {
+</span><span class='line'>    tmplCache[name] = $.get(&lsquo;/templates/&rsquo; + name);
+</span><span class='line'>  }
+</span><span class='line'>  return tmplCache[name];
+</span><span class='line'>}&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;$(function () {&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  var resultsList = $(&lsquo;#results&rsquo;);
+</span><span class='line'>  var liked = $(&lsquo;#liked&rsquo;);
+</span><span class='line'>  var pending = false;&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  $(&lsquo;#searchForm&rsquo;).on(&lsquo;submit&rsquo;, function (e) {
+</span><span class='line'>    e.preventDefault();&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;pre&gt;&lt;code&gt;if (pending) { return; }
+</span><span class='line'>
+</span><span class='line'>var form = $(this);
+</span><span class='line'>var query = $.trim( form.find('input[name="q"]').val() );
+</span><span class='line'>
+</span><span class='line'>if (!query) { return; }
+</span><span class='line'>
+</span><span class='line'>pending = true;
+</span><span class='line'>
+</span><span class='line'>$.ajax('/data/search.json', {
+</span><span class='line'>  data : { q: query },
+</span><span class='line'>  dataType : 'json',
+</span><span class='line'>  success : function (data) {
+</span><span class='line'>    loadTemplate('people-detailed.tmpl').then(function (t) {
+</span><span class='line'>      var tmpl = _.template(t);
+</span><span class='line'>      resultsList.html( tmpl({ people : data.results }) );
+</span><span class='line'>      pending = false;
+</span><span class='line'>    });
+</span><span class='line'>  }
+</span><span class='line'>});
+</span><span class='line'>
+</span><span class='line'>$('&lt;li&gt;', {
+</span><span class='line'>  'class' : 'pending',
+</span><span class='line'>  html : 'Searching &amp;hellip;'
+</span><span class='line'>}).appendTo( resultsList.empty() );
+</span><span class='line'>&lt;/code&gt;&lt;/pre&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  });&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  resultsList.on(&lsquo;click&rsquo;, &lsquo;.like&rsquo;, function (e) {
+</span><span class='line'>    e.preventDefault();
+</span><span class='line'>    var name = $(this).closest(&lsquo;li&rsquo;).find(&lsquo;h2&rsquo;).text();
+</span><span class='line'>    liked.find(&lsquo;.no-results&rsquo;).remove();
+</span><span class='line'>    $(&lsquo;&lt;li&gt;&rsquo;, { text: name }).appendTo(liked);
+</span><span class='line'>  });&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;});&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;pre&gt;&lt;code&gt;
+</span><span class='line'>我的好友[ Adam Sontag ](https://twitter.com/ajpiano)称之为*任意冒险*代码--在任意一行代码我们可能会执行展现，数据操作，交互 或者状态维护等任意操作。天知道！针对这种代码写集成测试很简单，但是单元功能难以测试。
+</span><span class='line'>
+</span><span class='line'>让单元测试变得困难的包括以下四点：
+</span><span class='line'>
+</span><span class='line'>* 结构松散； 几乎全部操作都发生在 `$(document).ready()` 的回调函数中， 这是个匿名函数，没有接口可供测试。
+</span><span class='line'>* 复杂的函数； 如果一个函数超过10行--如同一个提交处理函数--那么很可能它要执行的操作过多。
+</span><span class='line'>* 隐藏起来或者共享的程序状态； 例如 `pending ` 是在闭包中的变量，那就无法测试pending这个状态是不是正确的。
+</span><span class='line'>* 紧密的耦合； 例如 一个 `$.ajax ` 成功（success）的回调函数不应该直接操作DOM。
+</span><span class='line'>
+</span><span class='line'>##组织代码
+</span><span class='line'>
+</span><span class='line'>解决这个问题的第一步是让我们的代码更少的像面条一样扭在一起， 将其按功能分解到不同的区域：
+</span><span class='line'>
+</span><span class='line'>* 数据展现和用户交互
+</span><span class='line'>* 数据管理和持久化
+</span><span class='line'>* 程序状态
+</span><span class='line'>* 设置和粘合代码来把所有代码整合在一起
+</span><span class='line'>
+</span><span class='line'>在上面的实现中，这四类操作交织在一起，在这行我们正在进行页面呈现， 两行之后就开始和服务器通信。
+</span><span class='line'>
+</span><span class='line'>&lt;img src="http://d.alistapart.com/375/code-lines.png" alt="Code Lines"&gt;
+</span><span class='line'>
+</span><span class='line'>虽然我们可以写集成测试--我们也应该这么做--为这些代码写单元测试却非常困难。在功能性测试中，我们作出诸如“当用户搜索关键词，她应当看见正确的结果”的断言，却无法更加具体。如果哪里出了问题，就只能跟踪代码找到错误的地方，而功能性测试在这时候没什么作用。
+</span><span class='line'>
+</span><span class='line'>重新思考如何编写代码可以帮我们编写单元测试以更好的找到出bug的地方， 而且这样写出的代码也更容易复用，维护和扩展。
+</span><span class='line'>
+</span><span class='line'>我们的新代码会遵守以下原则
+</span><span class='line'>
+</span><span class='line'>* 将一组操作作为一个独立的对象，只执行四种功能之一，并且一个对象完全不知道其他对象的结构， 以此避免交织的代码。
+</span><span class='line'>* 支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境
+</span><span class='line'>* 保持对象代码的简洁，这有助于我们保持测试简单以及代码可读
+</span><span class='line'>* 用构造函数来创建实例。这让我们可以为了测试的需求“干净地”复制每段代码。
+</span><span class='line'>
+</span><span class='line'>作为开始，我们要先找到从哪里开始分解代码。有三块用来做展现和交互： 搜索表单，搜索结果，以及“Like框”
+</span><span class='line'>
+</span><span class='line'>&lt;img src="http://d.alistapart.com/375/app-views.png" alt="Application Views"&gt;
+</span><span class='line'>
+</span><span class='line'>同样会有一块代码用来从服务器取数据，以及另外一块用来将其他模块组织在一起。
+</span><span class='line'>
+</span><span class='line'>让我们先看看代码中最简单的： Like框。在初始的版本中，这些代码用来更新Like框： 
+</span><span class='line'>&lt;/code&gt;&lt;/pre&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;var liked = $(&lsquo;#liked&rsquo;);&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;var resultsList = $(&lsquo;#results&rsquo;);&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;// &hellip;&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;resultsList.on(&lsquo;click&rsquo;, &lsquo;.like&rsquo;, function (e) {
+</span><span class='line'>  e.preventDefault();&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  var name = $(this).closest(&lsquo;li&rsquo;).find(&lsquo;h2&rsquo;).text();&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  liked.find( &lsquo;.no-results&rsquo; ).remove();&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;  $(&lsquo;&lt;li&gt;&rsquo;, { text: name }).appendTo(liked);&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;});&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;pre&gt;&lt;code&gt;
+</span><span class='line'>搜索结果模块完全和Like框的代码纠缠在了一起，需要知道它的标签结构信息。 一个更优雅的， 更易测试的方法是创建一个Likes对象用来执行和Like框相关的DOM操作：
+</span><span class='line'>&lt;/code&gt;&lt;/pre&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;var Likes = function (el) {
+</span><span class='line'>  this.el = $(el);
+</span><span class='line'>  return this;
+</span><span class='line'>};&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;Likes.prototype.add = function (name) {
+</span><span class='line'>  this.el.find(&lsquo;.no-results&rsquo;).remove();
+</span><span class='line'>  $(&lsquo;&lt;li&gt;&rsquo;, { text: name }).appendTo(this.el);
+</span><span class='line'>};</span></code></pre></td></tr></table></div></figure></p>
+
+<p>这段代码提供了一个用来创建新Like框实例的构造函数。这个实例会有个<code>.add()</code>方法用来添加搜索结果。这样我们就可以为它写单元测试了。</p>
+
+<pre><code>
+var ul;
+
+setup(function(){
+  ul = $('&lt;ul&gt;&lt;li class="no-results"&gt;&lt;/li&gt;&lt;/ul&gt;');
+});
+
+test('constructor', function () {
+  var l = new Likes(ul);
+  assert(l);
+});
+
+test('adding a name', function () {
+  var l = new Likes(ul);
+  l.add('Brendan Eich');
+
+  assert.equal(ul.find('li').length, 1);
+  assert.equal(ul.find('li').first().html(), 'Brendan Eich');
+  assert.equal(ul.find('li.no-results').length, 0);
+});
+</code></pre>
+
+<p>没有那么难，是吗？ 这里我们使用<a href="http://visionmedia.github.io/mocha/">Mocha</a>作为测试框架， <a href="http://chaijs.com/">Chai</a>作为测试库。 Mocha提供了<code>test</code>和<code>setup</code>函数; Chai提供了assert函数。还有许多其他可选的测试框架和库， 但这里为了说明作用， 这两个库足够了。在实践中可以选择最适合自己和项目的: 除了Mocha， <a href="http://qunitjs.com/">Qunit</a>很流行， <a href="http://theintern.io/">Intern</a>显示了很多潜力。</p>
+
+<p>我们的测试代码先创建了一个用来作为Like框容器的ul。 然后执行了两个测试： 一个用来测试我们是否成功创建了Like框，另一个用来测试 <code>.add()</code> 的正确性。 有了这些测试，我们就可以放心地重构Like框相关的代码， 并且知道有没有对现有功能造成破坏。</p>
+
+<p>现在我们的客户端代码可以改成这样：</p>
+
+<pre><code>var liked = new Likes('#liked');
+var resultsList = $('#results');
+
+
+
+// ...
+
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.add(name);
+});
+</code></pre>
+
+<p>搜索结果模块要比Like框复杂， 但我们也可以尝试重构。 如同我们在Like框上添加了个<code>add()</code>方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要一个方法用来添加新结果，还有一个方法可以通知程序其他部分搜索结果发生了什么&ndash;例如，有人Like了一个搜索结果。</p>
+
+<pre><code>var SearchResults = function (el) {
+  this.el = $(el);
+  this.el.on( 'click', '.btn.like', _.bind(this._handleClick, this) );
+};
+
+SearchResults.prototype.setResults = function (results) {
+  var templateRequest = $.get('people-detailed.tmpl');
+  templateRequest.then( _.bind(this._populate, this, results) );
+};
+
+SearchResults.prototype._handleClick = function (evt) {
+  var name = $(evt.target).closest('li.result').attr('data-name');
+  $(document).trigger('like', [ name ]);
+};
+
+SearchResults.prototype._populate = function (results, tmpl) {
+  var html = _.template(tmpl, { people: results });
+  this.el.html(html);
+};
+</code></pre>
+
+<p>现在， 我们原来的代码就可以改成：</p>
+
+<pre><code>var liked = new Likes('#liked');
+var resultsList = new SearchResults('#results');
+
+
+// ...
+
+
+$(document).on('like', function (evt, name) {
+  liked.add(name);
+})
+</code></pre>
+
+<p>这要比原来的实现简洁多了， 因为我们将<code>document</code>作为一个传递消息的枢纽，组件之间就可以在不知道彼此结构的情况下进行通信。（在一个商业的APP中，我们一般会使用诸如<a href="http://backbonejs.org/">Backbone</a>或者是<a href="https://github.com/tildeio/rsvp.js">RSVP</a>这样的框架来管理事件，这里我们用document来确保简洁。）我们也将复杂的操作&ndash;例如从被喜欢的搜索结果中找出人名&ndash;交给SearchResults对象，而非让它把代码结构整的乱七八糟。最好的是：现在我们同样可以为SearchResults编写单元测试了：</p>
+
+<pre><code>var ul;
+var data = [ /* fake data here */ ];
+
+setup(function () {
+  ul = $('&lt;ul&gt;&lt;li class="no-results"&gt;&lt;/li&gt;&lt;/ul&gt;');
+});
+
+test('constructor', function () {
+  var sr = new SearchResults(ul);
+  assert(sr);
+});
+
+test('display received results', function () {
+  var sr = new SearchResults(ul);
+  sr.setResults(data);
+
+  assert.equal(ul.find('.no-results').length, 0);
+  assert.equal(ul.find('li.result').length, data.length);
+  assert.equal(
+    ul.find('li.result').first().attr('data-name'),
+    data[0].name
+  );
+});
+
+test('announce likes', function() {
+  var sr = new SearchResults(ul);
+  var flag;
+  var spy = function () {
+    flag = [].slice.call(arguments);
+  };
+
+  sr.setResults(data);
+  $(document).on('like', spy);
+
+  ul.find('li').first().find('.like.btn').click();
+
+  assert(flag, 'event handler called');
+  assert.equal(flag[1], data[0].name, 'event handler receives data' );
+});
+</code></pre>
+
+<p>和服务器的通信怎样模块化同样值得深思。原来是直接调用一个<code>$.ajax()</code>请求, 而且回调函数也在直接对DOM进行操作：</p>
+
+<pre><code>$.ajax('/data/search.json', {
+  data : { q: query },
+  dataType : 'json',
+  success : function( data ) {
+    loadTemplate('people-detailed.tmpl').then(function(t) {
+      var tmpl = _.template( t );
+      resultsList.html( tmpl({ people : data.results }) );
+      pending = false;
+    });
+  }
+});
+</code></pre>
+
+<p>同样地， 很难为这块代码编写单元测试， 短短的几行执行了太多的操作。我们将数据部分重构为一个对象：</p>
+
+<pre><code>var SearchData = function () { };
+
+SearchData.prototype.fetch = function (query) {
+  var dfd;
+
+  if (!query) {
+    dfd = $.Deferred();
+    dfd.resolve([]);
+    return dfd.promise();
+  }
+
+  return $.ajax( '/data/search.json', {
+    data : { q: query },
+    dataType : 'json'
+  }).pipe(function( resp ) {
+    return resp.results;
+  });
+};
+</code></pre>
+
+<p>现在， 可以修改获取数据部分的实现了：
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>var resultsList = new SearchResults(&lsquo;#results&rsquo;);&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;var searchData = new SearchData();&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;// &hellip;&lt;/p&gt;
+</span><span class='line'>
+</span><span class='line'>&lt;p&gt;searchData.fetch(query).then(resultsList.setResults);</span></code></pre></td></tr></table></div></figure></p>
+
+<p>我们再一次对代码成功进行了简化， 并且将数据操作的复杂性封装在了SearchData对象里， 而非放在主程序中。
+现在可以测试搜索接口了， 尽管在测试时有一些需要注意的地方：</p>
+
+<ul>
+<li>我们不想直接和服务器进行交互&ndash;否则就要重新进行集成测试， 而且我们都是负责任的程序员， 所以服务器的代码肯定被测试过了，不是吗？ 相应地， 我们“模仿”和服务器的交互，通过<a href="http://sinonjs.org/">Sinon</a>。</li>
+<li>我们同样要测试一些极端情况， 例如空字符串搜索。</li>
+</ul>
+
+
+<pre><code>test('constructor', function () {
+  var sd = new SearchData();
+  assert(sd);
+});
+
+suite('fetch', function () {
+  var xhr, requests;
+
+  setup(function () {
+    requests = [];
+    xhr = sinon.useFakeXMLHttpRequest();
+    xhr.onCreate = function (req) {
+      requests.push(req);
+    };
+  });
+
+  teardown(function () {
+    xhr.restore();
+  });
+
+  test('fetches from correct URL', function () {
+    var sd = new SearchData();
+    sd.fetch('cat');
+
+    assert.equal(requests[0].url, '/data/search.json?q=cat');
+  });
+
+  test('returns a promise', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+
+    assert.isFunction(req.then);
+  });
+
+  test('no request if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    assert.equal(requests.length, 0);
+  });
+
+  test('return a promise even if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+
+    assert.isFunction( req.then );
+  });
+
+  test('no query promise resolves with empty array', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    var spy = sinon.spy();
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], []);
+  });
+
+  test('returns contents of results property of the response', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+    var spy = sinon.spy();
+
+    requests[0].respond(
+      200, { 'Content-type': 'text/json' },
+      JSON.stringify({ results: [ 1, 2, 3 ] })
+    );
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], [ 1, 2, 3 ]);
+  });
+});
+</code></pre>
+
+<p>出于简洁性的考虑， 我没有讨论搜索表单的重构， 也简化了些其他的重构和测试。 但是你可以在<a href="https://github.com/rmurphey/testable-javascript">这里</a>看到完整的版本。</p>
+
+<p>当我们用可测试的js模式重写了程序之后， 一切变得简洁多了：</p>
+
+<pre><code>$(function() {
+  var pending = false;
+
+  var searchForm = new SearchForm('#searchForm');
+  var searchResults = new SearchResults('#results');
+  var likes = new Likes('#liked');
+  var searchData = new SearchData();
+
+  $(document).on('search', function (event, query) {
+    if (pending) { return; }
+
+    pending = true;
+
+    searchData.fetch(query).then(function (results) {
+      searchResults.setResults(results);
+      pending = false;
+    });
+
+    searchResults.pending();
+  });
+
+  $(document).on('like', function (evt, name) {
+    likes.add(name);
+  });
+});
+</code></pre>
+
+<p>比获得简洁的代码更重要的是， 现在我们完整的测试了代码。  这样我们就可以放心大胆地重构代码而不用怕会破坏之前写好的成果。 当出现新情况时， 我们甚至可以编写新的
+测试用例， 然后编写代码来通过它。</p>
+
+<h2>从长期来说 测试让生活更美好</h2>
+
+<p>可能你读到这里，然后突然出现个问题： “等一等！ 你想让我为了同样的功能写更多的代码？”</p>
+
+<p>事实是， 当你在互联网上进行创造时， 有些东西是躲不开的。你会花时间去设计解决问题的方法。你会测试你的解决方案：  或者是通过在浏览器里点击查看反应， 或者是通过自动化测试， 或者是&ndash;可怕地&ndash;让用户在生产环境中替你做测试。你会修改你的代码， 而其他人会使用你的代码。 而最终： 你的代码会有bug， 无论写了多少测试。</p>
+
+<p>关于测试的一个事实是尽管在开始时会多花费点时间，长远来看它却可以节省时间。当你的测试用例发现了一个bug时，当你有一个运行的系统证明你的bug修改确实有用时，你会觉得庆幸。</p>
+
+<h2>参考资料</h2>
+
+<p>这篇文章讨论了Javascript测试的一些基本知识。但是如果你想了解更多，可以参考：</p>
+
+<ul>
+<li><a href="http://lanyrd.com/2012/full-frontal/sztqh/">我的报告</a>, 来自2012年伦敦Brighton的Full Frontal会议。</li>
+<li><a href="http://gruntjs.com/">Grunt</a>用来进行自动化测试和许多其他任务的工具。</li>
+<li><a href="http://www.amazon.com/Test-Driven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&amp;qid=1366506174&amp;sr=8-1&amp;keywords=test+driven+javascript+development">编写可测试的Javascript代码</a> 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。</li>
+</ul>
+
+
+<h2>关于作者</h2>
+
+<h3>Rebecca Murphey</h3>
+
+<p>Rebecca Murphey is a senior software engineer at Bazaarvoice and a frequent speaker on the topics of code organization and best practices at conferences around the world. She’s also the creator of the TXJS conference, the author of the learning site jQuery Fundamentals, a contributor to the jQuery Cookbook from O’Reilly Media, and a technical reviewer for Effective JavaScript by Dave Herman. She blogs at <a href="http://lanyrd.com/2012/full-frontal/sztqh/">rmurphey.com</a>, tweets as <a href="https://twitter.com/rmurphey">@rmurphey</a>, and lives in Durham, NC, with her partner.</p>
+]]></content>
+  </entry>
+  
+</feed>
