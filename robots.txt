@@ -1,4 +1,4 @@
 User-agent: *
 Disallow: 
 
-Sitemap: http://xiawenqi.github.io//sitemap.xml 
+Sitemap: http://xiawenqi.github.com/sitemap.xml 
