@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Jquery事件命名空间 « 夏文奇的博客</title>
+  <meta name="description" content="#jQuery事件中的命名空间使用jQuery绑定事件非常简单， 调用on就可以了， 绑定多个事件也很方便。$('#element')  .on('click', doSomething)  .on('click', doSomethingElse);后绑定的事件不会重写之前的， 所以doSomething和do...">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://xiawenqi.github.io/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4">
+  <link rel="alternate" type="application/rss+xml" title="夏文奇的博客" href="http://xiawenqi.github.io/feed.xml" />
+</head>
+
+
+  <body>
+
+    <div class="header-placeholder"></div>
+<header class="header">
+  <div class="wrapper">
+    <div id="sidebar-toggle">TOC</div>
+    <a class="site-title" href="/">夏文奇的博客</a>
+    <nav class="site-nav">
+      
+        
+        <a class="page-link" href="/about/">关于</a>
+      
+        
+        <a class="page-link" href="/category/">分类</a>
+      
+    </nav>
+  </div>
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="col-main">
+          <div class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">Jquery事件命名空间</h1>
+    <p class="post-meta">Apr 4, 2018</p>
+  </header>
+
+  <article class="post-content">
+    <p>#jQuery事件中的命名空间</p>
+
+<p>使用jQuery绑定事件非常简单， 调用on就可以了， 绑定多个事件也很方便。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$('#element')
+  .on('click', doSomething)
+  .on('click', doSomethingElse);
+</code></pre></div></div>
+
+<p>后绑定的事件不会重写之前的， 所以doSomething和doSomethingElse都会执行。
+有时可能会因为各种原因(例如节省内存或者验证条件不合法禁止操作)需要移除事件也简单，</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$('#element').off('click');
+</code></pre></div></div>
+
+<p>简单的off就可以移除。 但是要注意的是这样会删除#element上的所有的事件， 但是其实我们只想删除一个事件。如果有事件出发的function的引用也简单</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$('#element').off('click', doSomething);
+</code></pre></div></div>
+
+<p>这样就只有doSomething被移除了， 当#elemgnt上触发了click事件时，doSomething不会执行， 但是doSomethingElse还是会执行。但是实际场景中经常会没有对应function的引用。例如是通过匿名方法定义的事件</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$('#element').on('click', function () {
+	console.log('doSomething');
+});
+</code></pre></div></div>
+<p>匿名函数绑定事件是现实中非常常用的一种方法。另一种常见的情况是事件是在另一个作用域或者文件中绑定的， 这时候一般不容易获取原函数的引用。</p>
+
+<p>jQeury提供的解决方法是通过<a href="https://api.jquery.com/event.namespace/">命名空间</a>。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$("#element")
+  .on("click.someNamespace", function() { 
+     console.log("doSomething");
+   });
+</code></pre></div></div>
+
+<p>现在就可以直接用off来取消这个事件了</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$("#element").off("click.someNamespace");
+</code></pre></div></div>
+
+<p>event.namespace的另一个用法是trigger：</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$("#element").trigger("click.someNamespace");
+</code></pre></div></div>
+
+<p>在加上namespace后， 原来的事件还是可以正常移除和触发</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$("#element").off("click"); // 移除所有的click事件
+$("#element").trigger("click"); // 触发所有的click事件
+</code></pre></div></div>
+<p>可以将namespace理解为class。事实上， 和class一样， 你可以使用多个namespace:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$("#element").on('click.namespace1.namespace2', ...);
+</code></pre></div></div>
+
+  </article>
+  
+  
+
+
+
+
+</div>
+
+        </div>
+        <div class="col-second">
+          <div class="col-box col-box-author">
+  <img class="avatar" src="https://www.gravatar.com/avatar/076bce3d85fe04813ab5f700ed1308f9" alt="xiawenqi">
+  <div class="col-box-title name">xiawenqi</div>
+  <p>老司机大牛逼</p>
+  <p class="contact">
+    
+    
+    
+    <a href="mailto:xiawenqi90@gmail.com">Email</a>
+    
+    <a href="https://github.com/xiawenqi">GitHub</a>
+    
+  </p>
+</div>
+
+<div class="col-box">
+  <div class="col-box-title">Newest Posts</div>
+  <ul class="post-list">
+    
+      <li><a class="post-link" href="/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81">编写可测试代码</a></li>
+    
+      <li><a class="post-link" href="/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC">前端代码风格</a></li>
+    
+      <li><a class="post-link" href="/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4">Jquery事件命名空间</a></li>
+    
+  </ul>
+</div>
+
+<div class="col-box post-toc hide">
+  <div class="col-box-title">TOC</div>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+<div class="wrapper">
+&copy; 2018 xiawenqi
+</div>
+</footer>
+
+<script type="text/x-mathjax-config">MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$']]}});</script>
+<script src="/js/easybook.js"></script>
+
+
+  </body>
+
+</html>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>编写可测试代码 « 夏文奇的博客</title>
+  <meta name="description" content="#编写可测试的Javascriptby REBECCA MURPHEY原文地址： writing-testable-javascript我们都有过这样的经验：写几行Javscript代码来实现一个小功能，然后随着需求变化变成了十几行，然后二十几行，然后更多。在这个过程中，函数的参数越来越多，条件判断的分支也越来越...">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://xiawenqi.github.io/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81">
+  <link rel="alternate" type="application/rss+xml" title="夏文奇的博客" href="http://xiawenqi.github.io/feed.xml" />
+</head>
+
+
+  <body>
+
+    <div class="header-placeholder"></div>
+<header class="header">
+  <div class="wrapper">
+    <div id="sidebar-toggle">TOC</div>
+    <a class="site-title" href="/">夏文奇的博客</a>
+    <nav class="site-nav">
+      
+        
+        <a class="page-link" href="/about/">关于</a>
+      
+        
+        <a class="page-link" href="/category/">分类</a>
+      
+    </nav>
+  </div>
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="col-main">
+          <div class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">编写可测试代码</h1>
+    <p class="post-meta">Apr 4, 2018</p>
+  </header>
+
+  <article class="post-content">
+    <p>#编写可测试的Javascript
+by REBECCA MURPHEY
+原文地址： <a href="http://alistapart.com/article/writing-testable-javascript" title="writing testable javascript">writing-testable-javascript</a></p>
+
+<p>我们都有过这样的经验：写几行Javscript代码来实现一个小功能，然后随着需求变化变成了十几行，然后二十几行，然后更多。在这个过程中，函数的参数越来越多，条件判断的分支也越来越多。然后有一天，代码出了问题，我们开始从一堆杂乱的代码中去找bug。</p>
+
+<p>当我们要求客户端代码执行越来越多的功能时 –实际上，现在整个应用程序很大一部分都是在客户端实现的– 有两件事是可以确定的。1.我们无法通过敲敲键盘， 点点鼠标， 就确保功能无误， 而要通过自动化测试确保代码的正确性。2. 为了让代码便于自动化测试，或许我们需要稍微改变下写代码的方式。</p>
+
+<p>虽然都知道自动化测试很好，但是现在大部分都只能实现集成测试。集成测试可以确保系统整体运行正常，但是无法确保单元功能正常。</p>
+
+<p>这就需要我们编写单元测试了。而编写单元测试会一直纠结直到我们开始<em>编写可测试的JavaScript</em>。</p>
+
+<p>##单元VS集成： 区别在哪？</p>
+
+<p>编写集成测试代码通常都非常直接：我们写代码来描述用户应该输入什么，然后他又应该看见什么。
+<a href="http://docs.seleniumhq.org/">Selenium</a>是一个流行的自动化浏览器测试工具。<a href="https://github.com/jnicklas/capybara">Capybara</a>让Ruby下的Selenium非常好用。 针对许多其他的语言也有其专门的工具。</p>
+
+<p>这里是针对一个搜索引擎一个模块的集成测试：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>def test_search
+  fill_in('q', :with =&gt; 'cat')
+  find('.btn').click
+  assert( find('#results li').has_content?('cat'), 'Search results are shown' )
+  assert( page.has_no_selector?('#results li.noresults'), 'No results is not shown' )
+end
+</code></pre></div></div>
+
+<p>与集成测试关注的是用户和程序的交互相比，单元测试仅仅关注小段代码的行为：</p>
+<blockquote>
+  <p>当我传递给一个函数一定的参数时，我有没有获得期望的返回值？</p>
+</blockquote>
+
+<p>用传统方式写的代码可能会非常难写对应的单元测试用例– 而且很难维护，调试，扩展。但是如果我们写代码时已经构思好了将要写的单元测试， 我们可能会发现不仅编写单元测试变得很容易，代码质量也会随之提高！</p>
+
+<p>要知道为什么我这么说，我们先看个例子：</p>
+
+<p><img src="http://d.alistapart.com/375/app.png" alt="Srchr" /></p>
+
+<p>当用户输入一个搜索词时，程序会发送一个XHR请求到服务器获取相应数据。服务器返回了JSON格式的数据后，客户端就会解析数据并且用模板展示在页面上。用户可以点击一条搜索结果来表明他“喜欢(likes)”该结果，当该事件发生时，他Like的人名会被添加到右侧的Like列表上。</p>
+
+<p>一个“传统”的JavaScript实现方式可能是这个样子的：</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var tmplCache = {};
+
+function loadTemplate (name) {
+  if (!tmplCache[name]) {
+    tmplCache[name] = $.get('/templates/' + name);
+  }
+  return tmplCache[name];
+}
+
+$(function () {
+
+  var resultsList = $('#results');
+  var liked = $('#liked');
+  var pending = false;
+
+  $('#searchForm').on('submit', function (e) {
+    e.preventDefault();
+
+    if (pending) { return; }
+
+    var form = $(this);
+    var query = $.trim( form.find('input[name="q"]').val() );
+
+    if (!query) { return; }
+
+    pending = true;
+
+    $.ajax('/data/search.json', {
+      data : { q: query },
+      dataType : 'json',
+      success : function (data) {
+        loadTemplate('peopledetailed.tmpl').then(function (t) {
+          var tmpl = _.template(t);
+          resultsList.html( tmpl({ people : data.results }) );
+          pending = false;
+        });
+      }
+    });
+
+    $('&lt;li&gt;', {
+      'class' : 'pending',
+      html : 'Searching &amp;hellip;'
+    }).appendTo( resultsList.empty() );
+  });
+
+  resultsList.on('click', '.like', function (e) {
+    e.preventDefault();
+    var name = $(this).closest('li').find('h2').text();
+    liked.find('.noresults').remove();
+    $('&lt;li&gt;', { text: name }).appendTo(liked);
+  });
+
+});
+
+</code></pre></div></div>
+
+<p>我的好友<a href="https://twitter.com/ajpiano"> Adam Sontag </a>称之为<em>任意冒险</em>代码–在任意一行代码我们可能会执行展现，数据操作，交互 或者状态维护等任意操作。天知道！针对这种代码写集成测试很简单，但是单元功能难以测试。</p>
+
+<p>让单元测试变得困难的包括以下四点：</p>
+
+<ul>
+  <li>结构松散； 几乎全部操作都发生在 <code class="highlighter-rouge">$(document).ready()</code> 的回调函数中， 这是个匿名函数，没有接口可供测试。</li>
+  <li>复杂的函数； 如果一个函数超过10行–如同一个提交处理函数–那么很可能它要执行的操作过多。</li>
+  <li>隐藏起来或者共享的程序状态； 例如 <code class="highlighter-rouge">pending </code> 是在闭包中的变量，那就无法测试pending这个状态是不是正确的。</li>
+  <li>紧密的耦合； 例如 一个 <code class="highlighter-rouge">$.ajax </code> 成功（success）的回调函数不应该直接操作DOM。</li>
+</ul>
+
+<p>##组织代码</p>
+
+<p>解决这个问题的第一步是让我们的代码更少的像面条一样扭在一起， 将其按功能分解到不同的区域：</p>
+
+<ul>
+  <li>数据展现和用户交互</li>
+  <li>数据管理和持久化</li>
+  <li>程序状态</li>
+  <li>设置和粘合代码来把所有代码整合在一起</li>
+</ul>
+
+<p>在上面的实现中，这四类操作交织在一起，在这行我们正在进行页面呈现， 两行之后就开始和服务器通信。</p>
+
+<p><img src="http://d.alistapart.com/375/code-lines.png" alt="Code Lines" /></p>
+
+<p>虽然我们可以写集成测试–我们也应该写–写单元测试却非常难。在功能性测试中，我们作出诸如“当用户搜索关键词，她应当看见正确的结果”的断言，却无法更加具体。如果哪里出了问题，就只能跟踪代码找到错误的地方，而功能性测试在这时候没什么用。</p>
+
+<p>重新思考如何编写代码可以帮我们编写单元测试以更好的找到出bug的地方， 而且这样写出的代码也更容易复用，维护和扩展。</p>
+
+<p>我们的新代码会遵守以下原则</p>
+
+<ul>
+  <li>将一组操作作为一个独立的对象，只执行四种功能之一，并且一个对象完全不知道其他对象的结构， 以此避免交织的代码。</li>
+  <li>支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境</li>
+  <li>保持目标代码的简洁，这有助于我们保持测试简单及代码可读</li>
+  <li>用构造函数来创建实例。这让就可以为了测试的需求“干净地”复制每段代码。</li>
+</ul>
+
+<p>首先我们要先找到从哪里开始分解代码。有三块用来做展现和交互： 搜索表单，搜索结果，以及“Like框”</p>
+
+<p><img src="http://d.alistapart.com/375/appviews.png" alt="Application Views" /></p>
+
+<p>同样会有一块代码用来从服务器取数据，以及另外一块用来将其他模块组织在一起。</p>
+
+<p>先看看代码中最简单的Like框。在初始的版本中，这些代码用来更新Like框：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var liked = $('#liked');
+
+var resultsList = $('#results');
+
+
+// ...
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.find( '.noresults' ).remove();
+
+  $('&lt;li&gt;', { text: name }).appendTo(liked);
+
+});
+
+</code></pre></div></div>
+
+<p>搜索结果模块完全和Like框的代码纠缠在了一起，需要知道它的标签结构信息。 一个更优雅的， 更易测试的方法是创建一个Likes对象用来执行和Like框相关的DOM操作：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var Likes = function (el) {
+  this.el = $(el);
+  return this;
+};
+
+Likes.prototype.add = function (name) {
+  this.el.find('.noresults').remove();
+  $('&lt;li&gt;', { text: name }).appendTo(this.el);
+};
+</code></pre></div></div>
+
+<p>这段代码提供了一个用来创建新Like框实例的构造函数。这个实例会有个<code class="highlighter-rouge">.add()</code>方法用来添加搜索结果。这样我们就可以给它写单元测试了。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
+var ul;
+
+setup(function(){
+  ul = $('&lt;ul&gt;&lt;li class="noresults"&gt;&lt;/li&gt;&lt;/ul&gt;');
+});
+
+test('constructor', function () {
+  var l = new Likes(ul);
+  assert(l);
+});
+
+test('adding a name', function () {
+  var l = new Likes(ul);
+  l.add('Brendan Eich');
+
+  assert.equal(ul.find('li').length, 1);
+  assert.equal(ul.find('li').first().html(), 'Brendan Eich');
+  assert.equal(ul.find('li.noresults').length, 0);
+});
+
+</code></pre></div></div>
+
+<p>没那么难吧？ 我们使用<a href="http://visionmedia.github.io/mocha/">Mocha</a>作为测试框架， <a href="http://chaijs.com/">Chai</a>作为测试库。 Mocha提供了<code class="highlighter-rouge">test</code>和<code class="highlighter-rouge">setup</code>函数; Chai提供了assert函数。还有许多其他可选的测试框架和库， 但这里为了解说， 这两个库够了。在实践中可以选择最适合自己和项目的: 除了Mocha， <a href="http://qunitjs.com/">Qunit</a>很流行， <a href="http://theintern.io/">Intern</a>显示了很多潜力。</p>
+
+<p>我们的测试代码先创建了一个用来作为Like框容器的ul。 然后执行了两个测试： 一个用来测试我们是否成功创建了Like框，另一个用来测试 <code class="highlighter-rouge">.add()</code> 的正确性。 有了这些测试，我们就可以放心地重构Like框相关的代码， 并且知道有没有对现有功能造成破坏。</p>
+
+<p>现在我们的客户端代码可以改成这样：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var liked = new Likes('#liked');
+var resultsList = $('#results');
+
+
+
+// ...
+
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.add(name);
+});
+</code></pre></div></div>
+
+<p>搜索结果模块要比Like框复杂， 但我们也可以尝试重构。 如同我们在Like框上添加了个<code class="highlighter-rouge">add()</code>方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要一个方法用来添加新结果，还有一个方法可以通知程序其他部分搜索结果发生了什么–例如，有人Like了一个搜索结果。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var SearchResults = function (el) {
+  this.el = $(el);
+  this.el.on( 'click', '.btn.like', _.bind(this._handleClick, this) );
+};
+
+SearchResults.prototype.setResults = function (results) {
+  var templateRequest = $.get('peopledetailed.tmpl');
+  templateRequest.then( _.bind(this._populate, this, results) );
+};
+
+SearchResults.prototype._handleClick = function (evt) {
+  var name = $(evt.target).closest('li.result').attr('dataname');
+  $(document).trigger('like', [ name ]);
+};
+
+SearchResults.prototype._populate = function (results, tmpl) {
+  var html = _.template(tmpl, { people: results });
+  this.el.html(html);
+};
+</code></pre></div></div>
+
+<p>现在， 我们原来的代码就可以改成：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var liked = new Likes('#liked');
+var resultsList = new SearchResults('#results');
+
+
+// ...
+
+
+$(document).on('like', function (evt, name) {
+  liked.add(name);
+})
+
+</code></pre></div></div>
+
+<p>-这比原来的实现简洁多了， 因为我们将<code class="highlighter-rouge">document</code>作为一个传递消息的枢纽，组件之间就可以在不知道彼此结构的情况下进行通信。（在一个商业的APP中，我们一般会使用诸如<a href="http://backbonejs.org/">Backbone</a>或者是<a href="https://github.com/tildeio/rsvp.js">RSVP</a>这样的框架来管理事件，这里我们用document来保持简洁。）我们也将复杂的操作–例如从被喜欢的搜索结果中找出人名–交给SearchResults对象，而非让它把代码结构整的乱七八糟。最好的是：现在我们同样可以为SearchResults编写单元测试了：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var ul;
+var data = [ /* fake data here */ ];
+
+setup(function () {
+  ul = $('&lt;ul&gt;&lt;li class="noresults"&gt;&lt;/li&gt;&lt;/ul&gt;');
+});
+
+test('constructor', function () {
+  var sr = new SearchResults(ul);
+  assert(sr);
+});
+
+test('display received results', function () {
+  var sr = new SearchResults(ul);
+  sr.setResults(data);
+
+  assert.equal(ul.find('.noresults').length, 0);
+  assert.equal(ul.find('li.result').length, data.length);
+  assert.equal(
+    ul.find('li.result').first().attr('dataname'),
+    data[0].name
+  );
+});
+
+test('announce likes', function() {
+  var sr = new SearchResults(ul);
+  var flag;
+  var spy = function () {
+    flag = [].slice.call(arguments);
+  };
+
+  sr.setResults(data);
+  $(document).on('like', spy);
+
+  ul.find('li').first().find('.like.btn').click();
+
+  assert(flag, 'event handler called');
+  assert.equal(flag[1], data[0].name, 'event handler receives data' );
+});
+
+</code></pre></div></div>
+
+<p>和服务器的通信怎样模块化同样值得深思。原来是直接调用一个<code class="highlighter-rouge">$.ajax()</code>请求, 而且回调函数也在直接对DOM进行操作：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$.ajax('/data/search.json', {
+  data : { q: query },
+  dataType : 'json',
+  success : function( data ) {
+    loadTemplate('peopledetailed.tmpl').then(function(t) {
+      var tmpl = _.template( t );
+      resultsList.html( tmpl({ people : data.results }) );
+      pending = false;
+    });
+  }
+});
+</code></pre></div></div>
+
+<p>同样地， 很难为这块代码编写单元测试， 短短的几行执行了太多的操作。我们将数据部分重构为一个对象：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var SearchData = function () { };
+
+SearchData.prototype.fetch = function (query) {
+  var dfd;
+
+  if (!query) {
+    dfd = $.Deferred();
+    dfd.resolve([]);
+    return dfd.promise();
+  }
+
+  return $.ajax( '/data/search.json', {
+    data : { q: query },
+    dataType : 'json'
+  }).pipe(function( resp ) {
+    return resp.results;
+  });
+};
+</code></pre></div></div>
+
+<p>现在， 可以修改获取数据部分的实现了：</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var resultsList = new SearchResults('#results');
+
+var searchData = new SearchData();
+
+// ...
+
+searchData.fetch(query).then(resultsList.setResults);
+</code></pre></div></div>
+
+<p>我们再一次对代码成功进行了简化， 并且将数据操作的复杂性封装在了SearchData对象里， 而非放在主程序中。
+现在可以测试搜索接口了， 尽管在测试时有一些需要注意的地方：</p>
+
+<ul>
+  <li>我们不想直接和服务器进行交互–否则就要重新进行集成测试， 而且我们都是负责任的程序员， 所以服务器的代码肯定被测试过了，是吧？ 相应地， 我们“模仿”和服务器的交互，通过<a href="http://sinonjs.org/">Sinon</a>。</li>
+  <li>我们同样要测试一些极端情况， 例如空字符串搜索。</li>
+</ul>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>test('constructor', function () {
+  var sd = new SearchData();
+  assert(sd);
+});
+
+suite('fetch', function () {
+  var xhr, requests;
+
+  setup(function () {
+    requests = [];
+    xhr = sinon.useFakeXMLHttpRequest();
+    xhr.onCreate = function (req) {
+      requests.push(req);
+    };
+  });
+
+  teardown(function () {
+    xhr.restore();
+  });
+
+  test('fetches from correct URL', function () {
+    var sd = new SearchData();
+    sd.fetch('cat');
+
+    assert.equal(requests[0].url, '/data/search.json?q=cat');
+  });
+
+  test('returns a promise', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+
+    assert.isFunction(req.then);
+  });
+
+  test('no request if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    assert.equal(requests.length, 0);
+  });
+
+  test('return a promise even if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+
+    assert.isFunction( req.then );
+  });
+
+  test('no query promise resolves with empty array', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    var spy = sinon.spy();
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], []);
+  });
+
+  test('returns contents of results property of the response', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+    var spy = sinon.spy();
+
+    requests[0].respond(
+      200, { 'Contenttype': 'text/json' },
+      JSON.stringify({ results: [ 1, 2, 3 ] })
+    );
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], [ 1, 2, 3 ]);
+  });
+});
+</code></pre></div></div>
+
+<p>出于简洁性的考虑， 我没有讨论搜索表单的重构， 也简化了些其他的重构和测试。 但是你可以在<a href="https://github.com/rmurphey/testable-javascript">这里</a>看到完整的版本。</p>
+
+<p>当我们用可测试的js模式重写了程序之后， 一切变得简洁多了：</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$(function() {
+  var pending = false;
+
+  var searchForm = new SearchForm('#searchForm');
+  var searchResults = new SearchResults('#results');
+  var likes = new Likes('#liked');
+  var searchData = new SearchData();
+
+  $(document).on('search', function (event, query) {
+    if (pending) { return; }
+
+    pending = true;
+
+    searchData.fetch(query).then(function (results) {
+      searchResults.setResults(results);
+      pending = false;
+    });
+
+    searchResults.pending();
+  });
+
+  $(document).on('like', function (evt, name) {
+    likes.add(name);
+  });
+});
+</code></pre></div></div>
+
+<p>比获得简洁的代码更重要的是， 现在我们完整的测试了代码。  这样我们就可以放心大胆地重构代码而不用怕会破坏之前写好的成果。 当出现新情况时， 甚至可以编写新的
+测试用例， 然后再写相应的代码。</p>
+
+<p>##从长期来说 测试让生活更美好</p>
+
+<p>可能你读到这里，然后突然出现个问题： “等一等！ 你想让我为了同样的功能写更多的代码？”</p>
+
+<p>事实是， 当你在互联网上进行创造时， 有些东西是躲不开的。你会花时间去设计解决问题的方法。你会测试你的解决方案：  或者是通过在浏览器里点击查看反应， 或者是通过自动化测试， 或者是–可怕地–让用户在生产环境中替你做测试。你会修改你的代码， 而其他人会使用你的代码。 而最终： 你的代码会有bug， 无论写了多少测试。</p>
+
+<p>关于测试的一个事实是尽管在开始时会多花费点时间，长远来看它却可以节省时间。当你的测试用例发现了一个bug时，当你有一个运行的系统证明你的bug修改确实有用时，你会觉得庆幸。</p>
+
+<p>##参考资料</p>
+
+<p>这篇文章讨论了Javascript测试的一些基本知识。但是如果想了解更多，可以参考：</p>
+
+<ul>
+  <li><a href="http://lanyrd.com/2012/fullfrontal/sztqh/">我的报告</a>, 来自2012年伦敦Brighton的Full Frontal会议。</li>
+  <li><a href="http://gruntjs.com/">Grunt</a>用来进行自动化测试和许多其他任务的工具。</li>
+  <li><a href="http://www.amazon.com/TestDriven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&amp;qid=1366506174&amp;sr=8-1&amp;keywords=test+driven+javascript+development">编写可测试的Javascript代码</a> 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。</li>
+</ul>
+
+<p>##关于作者
+###Rebecca Murphey
+Rebecca Murphey is a senior software engineer at Bazaarvoice and a frequent speaker on the topics of code organization and best practices at conferences around the world. She’s also the creator of the TXJS conference, the author of the learning site jQuery Fundamentals, a contributor to the jQuery Cookbook from O’Reilly Media, and a technical reviewer for Effective JavaScript by Dave Herman. She blogs at <a href="http://lanyrd.com/2012/full-frontal/sztqh/">rmurphey.com</a>, tweets as <a href="https://twitter.com/rmurphey">@rmurphey</a>, and lives in Durham, NC, with her partner.</p>
+
+  </article>
+  
+  
+
+
+
+
+</div>
+
+        </div>
+        <div class="col-second">
+          <div class="col-box col-box-author">
+  <img class="avatar" src="https://www.gravatar.com/avatar/076bce3d85fe04813ab5f700ed1308f9" alt="xiawenqi">
+  <div class="col-box-title name">xiawenqi</div>
+  <p>老司机大牛逼</p>
+  <p class="contact">
+    
+    
+    
+    <a href="mailto:xiawenqi90@gmail.com">Email</a>
+    
+    <a href="https://github.com/xiawenqi">GitHub</a>
+    
+  </p>
+</div>
+
+<div class="col-box">
+  <div class="col-box-title">Newest Posts</div>
+  <ul class="post-list">
+    
+      <li><a class="post-link" href="/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81">编写可测试代码</a></li>
+    
+      <li><a class="post-link" href="/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC">前端代码风格</a></li>
+    
+      <li><a class="post-link" href="/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4">Jquery事件命名空间</a></li>
+    
+  </ul>
+</div>
+
+<div class="col-box post-toc hide">
+  <div class="col-box-title">TOC</div>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+<div class="wrapper">
+&copy; 2018 xiawenqi
+</div>
+</footer>
+
+<script type="text/x-mathjax-config">MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$']]}});</script>
+<script src="/js/easybook.js"></script>
+
+
+  </body>
+
+</html>

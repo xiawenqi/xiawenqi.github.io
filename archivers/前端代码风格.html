@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>前端代码风格 « 夏文奇的博客</title>
+  <meta name="description" content="前端代码风格建议为什么要有代码风格一门计算机语言并不仅仅是计算机去执行的一种方式,更重要的,它是一种表述有关方法学的思想的新颖的形式化媒介。程序必须写出来是供人们阅读的, 偶尔地送到计算机上去执行。在代码的生命周期中, 初期的开发只占20%, 另外的80%都在维护。一段代码经常会被反复阅读,调用,修改, 重构, ...">
+
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="canonical" href="http://xiawenqi.github.io/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC">
+  <link rel="alternate" type="application/rss+xml" title="夏文奇的博客" href="http://xiawenqi.github.io/feed.xml" />
+</head>
+
+
+  <body>
+
+    <div class="header-placeholder"></div>
+<header class="header">
+  <div class="wrapper">
+    <div id="sidebar-toggle">TOC</div>
+    <a class="site-title" href="/">夏文奇的博客</a>
+    <nav class="site-nav">
+      
+        
+        <a class="page-link" href="/about/">关于</a>
+      
+        
+        <a class="page-link" href="/category/">分类</a>
+      
+    </nav>
+  </div>
+</header>
+
+
+    <div class="page-content">
+      <div class="wrapper">
+        <div class="col-main">
+          <div class="post">
+
+  <header class="post-header">
+    <h1 class="post-title">前端代码风格</h1>
+    <p class="post-meta">Apr 4, 2018</p>
+  </header>
+
+  <article class="post-content">
+    <h1 id="前端代码风格建议">前端代码风格建议</h1>
+
+<h2 id="为什么要有代码风格">为什么要有代码风格</h2>
+
+<p>一门计算机语言并不仅仅是计算机去执行的一种方式,更重要的,它是一种表述有关方法学的思想的新颖的形式化媒介。程序必须写出来是供人们阅读的, 偶尔地送到计算机上去执行。在代码的生命周期中, 初期的开发只占20%, 另外的80%都在维护。一段代码经常会被反复阅读,调用,修改, 重构, 这些时候我们写的代码都会被阅读。所以代码的可读性是衡量代码质量的重要属性。 在编写代码的过程中, 最好时刻保持这样的意识: 这段代码我自己在几个星期之后还能不能看得懂了, 别人能不能读懂这些代码？</p>
+
+<p>代码风格很大的决定了代码的可读性。 整个项目中应该保持代码的统一风格: 这样读者就可以集中精力关注代码做了什么事情, 而非他是怎么样写代码的。</p>
+
+<p>一般来说, <strong>遵循什么样的代码的风格并不重要, 例如操作符两端留不留空格, 字符串使用单引号还是双引号, 重要的是写之前看看周围的代码并保持一致</strong>: 如果别人的运算符两边都有空格, 就在操作符两边加上空格, 如果别人的字符串是用的单引号, 就使用单引号。</p>
+
+<h2 id="js文件">js文件</h2>
+<p>js代码都写在.js文件里面。 除非必须, 避免在页面中直接使用script标签。</p>
+
+<h2 id="缩进">缩进</h2>
+<p>使用四空格缩进。用tab的时候各个操作系统不统一。可以通过文本编辑器配置。</p>
+
+<h2 id="行长度">行长度</h2>
+<p>避免行长度超过80个字符。当语句的长度超过80个字符时, 分解语句。在运算符后面折行, 或者在逗号后面更好。折后的行应该缩进8个字符。</p>
+
+<h2 id="注释">注释</h2>
+<p>多写注释。方法名写的不够清晰的注明方法的作用。分支如果别人可能读不懂, 说明每个分支的情况。变量, 特别是全局变量(避免全局变量)可能造成别人读不懂的时候注释说明。</p>
+
+<p>维护注释。代码重构了之后如果原来的注释和代码不一致了应及时维护, 和代码不一致的注释会造成更多疑惑。</p>
+
+<p>确保注释有意义。告诉读者（很多时候是作者自己）他一眼看不出来的信息, 帮读者读懂代码。不用这种注释浪费读者的时间:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 将i的值设为0
+i = 0; 
+</code></pre></div></div>
+
+<h2 id="空格">空格</h2>
+<p>运算符两边保留空格</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>foo = bar + zoo;
+</code></pre></div></div>
+
+<p>参数之间的逗号后插入一个空格,</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>callback(arg1, arg2);
+[elem1, elem2];
+</code></pre></div></div>
+<p>括号的开头和结尾不保留空格。</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 不采用这种空格方式
+callback( arg1, arg2 );
+[ elem1, elem2 ];
+</code></pre></div></div>
+
+<h2 id="花括号">花括号</h2>
+<p>花括号开头在语句当前行, 不另起一行</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 错误
+function foo()
+{
+
+}
+// 正确
+if(test) {
+	
+}
+</code></pre></div></div>
+
+<p>由于Ken Tompsen的B语言编译器(C语言前身)允许两种格式都编译通过， 大家一直在争论花括号应该在当前行还是另起一行开始。 如果Ken当年规定只有一种语法是正确的, 另外一种写法是语法错误, 那程序员的世界肯定会安宁许多。K&amp;R C里的demo花括号都是另起一行, 所以很多语言建议另起一行。 但是JS里建议把花括号的开头保留在这一行:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// 错误！！！
+return
+{
+	key: value
+};
+
+</code></pre></div></div>
+<p>由于分号的自动补全, 这样的return的是undefined。 所以return后的花括号开头必须在当前行。 为了程序中花括号风格保持一致， 建议花括号都从当前行开始。</p>
+
+<h2 id="字符串">字符串</h2>
+<p>优先单引号于双引号</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>'"Hey", he said, "how are you?"'
+</code></pre></div></div>
+
+<p>除非必须, 避免在js中用字符串拼接html, 用script标签。</p>
+
+<p>纯Html标签用
+<code class="highlighter-rouge">&lt;script type="text/html"&gt;</code>
+模板用
+<code class="highlighter-rouge">&lt;script type="text/template"&gt;</code></p>
+
+<p>这两个有什么区别吗？ 没有。 只要不是type=”text/javascript”的都不会解析成js, 这里只是作为字符串的载体。</p>
+
+<p>另外, 引用脚本文件的标签也不该加上type=”text/javascript”。 这里是指定资源的MIME类型, 但是MIME应该由服务器指定, 而非script标签。</p>
+
+<h2 id="变量申明">变量申明</h2>
+<p>Js中的变量的作用域是以function为作用域, 而不是块。 (推荐阅读<a href="http://www.adequatelygood.com/JavaScript-Scoping-and-Hoisting.html">变量提升</a>)</p>
+
+<p>所有未声明而直接使用的变量都会变成全局变量。</p>
+
+<p>在function的第一个语句声明变量, 使用单var模式:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var x, y, z;
+</code></pre></div></div>
+
+<p>避免使用全局变量,全局变量让程序很难阅读。 如果一定要用, 显式的初始化和使用:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>window.gloablVariable = { key: 'initial value' };
+window.gloablVariable.key = 'altered value';
+</code></pre></div></div>
+
+<h2 id="函数声明">函数声明</h2>
+<p>避免函数表达式, 容易和变量混淆。 尽量函数声明:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>function foo(){
+
+}
+</code></pre></div></div>
+
+<p>除非这种情况:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>var bar = (function(){
+	var tmp = '';
+	
+	return function(x, y){
+		
+	};
+})();
+</code></pre></div></div>
+
+<h2 id="命名naming">命名（Naming）</h2>
+<p>用英文单词作为函数名和变量名, 不要拼音。</p>
+
+<p>统一驼峰规则。普通变量用小驼峰： thisIsANormalVariable
+构造函数用大驼峰： ThisIsAClass。 因为除了这一点, 我们没办法区分构造函数和普通function</p>
+
+<p>变量使用修饰语+名词: paintedColor,  firstElement。</p>
+
+<p>数组使用复数:  installedKeys。</p>
+
+<p>函数动词开头: renderPage, getKeys, setName</p>
+
+<p>函数返回布尔值的is开头: isIntalled, isEmpty(注意是函数不是变量, 变量此处叫installed, empty)。</p>
+
+<p>确保变量名不增加读者的阅读成本。</p>
+
+<h3 id="return语句">return语句</h3>
+<p>return的值不用小括号包起来。 返回值应该在return的同一行, 避免分号插入。</p>
+
+<h3 id="if语句">if语句</h3>
+<p>如果在else的后面没有更多的代码, 可以考虑提前返回, 精简代码。例如值校验。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>if(value === '') {
+	// logic
+	return;
+}
+if(value &gt; MAX) {
+	return;
+}
+// formal logic
+</code></pre></div></div>
+
+<p>避免这样写:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>if(value === '') {
+	// …
+} else {
+	if(value &gt; MAX) {
+		// …
+	} else {
+		// formal logic
+		// 嵌套过深
+	}
+}
+</code></pre></div></div>
+
+<h3 id="switch语句">Switch语句</h3>
+<p>分支不需要缩进。case不是语句, 所以可以不遵循语句的缩进规则, 也可以减少缩进。
+每个分支都以break, return, 或者是throw语句结尾, 处理后及时跳出, 否则至少会被default分支捕捉到。</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>switch (expression) {
+case expression:
+    statements
+default:
+    statements
+}
+</code></pre></div></div>
+
+<h3 id="try语句">Try语句</h3>
+<p>采用如下形式</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>try {
+    statements
+} catch (variable) {
+    statements
+}
+
+try {
+    statements
+} catch (variable) {
+    statements
+} finally {
+    statements
+}
+</code></pre></div></div>
+
+<p>关于异常: 异常是程序员的好朋友, 它帮我们排除错误。 除非清楚要捕捉的异常是什么, 否则不应该用catch把异常吞了。 有异常说明有错误, 利用异常栈找出代码中的错误。</p>
+
+<p>如果想保证API以正确的方式被调用, 可以在参数不正确的时候把异常throw出来。</p>
+
+<p>总之, throw异常的时候开放一点, 但是在catch的时候保守一点。</p>
+
+<h3 id="continu语句">Continu语句</h3>
+<p>会混淆控制流, 避免使用</p>
+
+<h3 id="with语句">With语句</h3>
+<p>不用</p>
+
+<h2 id="其他建议">其他建议</h2>
+
+<h3 id="和">{}和[]</h3>
+<p>用{} 而非new Object(); 用[] 而非 new Array()。</p>
+
+<h3 id="赋值语句">赋值语句</h3>
+<p>避免在条件语句中赋值。</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>if (a = b) {
+</code></pre></div></div>
+<p>这是想赋值还是本来想写</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>if (a == b) {
+</code></pre></div></div>
+<p>漏了等号？</p>
+
+<h3 id="-和-">=== 和 !==</h3>
+<p>用===和！== 。 == 和！= 不比较类型, 会试图进行类型转换。</p>
+
+<h2 id="参考文档">参考文档</h2>
+<ol>
+  <li>Douglas Crockford, <a href="http://javascript.crockford.com/code.html]">Code Conventions for the JavaScript Programming Language</a></li>
+  <li>Sun, <a href="http://javascript.crockford.com/javacodeconventions.pdf">Java Code Conventions</a></li>
+  <li>Addy Osmani, <a href="http://addyosmani.com/blog/javascript-style-guides-and-beautifiers/">JavaScript Style Guides And Beautifiers</a></li>
+  <li>Google, <a href="https://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml">Google JavaScript Style Guide</a></li>
+  <li>jQuery community, <a href="https://contribute.jquery.org/style-guide/js/">jQuery JavaScript Style Guide</a></li>
+  <li>Harold Abelson and Gerald Jay Sussman, <a href="http://mitpress.mit.edu/sicp/full-text/book/book-Z-H-7.html">SICP, Preface to the First Edition</a></li>
+</ol>
+
+  </article>
+  
+  
+
+
+
+
+</div>
+
+        </div>
+        <div class="col-second">
+          <div class="col-box col-box-author">
+  <img class="avatar" src="https://www.gravatar.com/avatar/076bce3d85fe04813ab5f700ed1308f9" alt="xiawenqi">
+  <div class="col-box-title name">xiawenqi</div>
+  <p>老司机大牛逼</p>
+  <p class="contact">
+    
+    
+    
+    <a href="mailto:xiawenqi90@gmail.com">Email</a>
+    
+    <a href="https://github.com/xiawenqi">GitHub</a>
+    
+  </p>
+</div>
+
+<div class="col-box">
+  <div class="col-box-title">Newest Posts</div>
+  <ul class="post-list">
+    
+      <li><a class="post-link" href="/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81">编写可测试代码</a></li>
+    
+      <li><a class="post-link" href="/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC">前端代码风格</a></li>
+    
+      <li><a class="post-link" href="/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4">Jquery事件命名空间</a></li>
+    
+  </ul>
+</div>
+
+<div class="col-box post-toc hide">
+  <div class="col-box-title">TOC</div>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+<div class="wrapper">
+&copy; 2018 xiawenqi
+</div>
+</footer>
+
+<script type="text/x-mathjax-config">MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$']]}});</script>
+<script src="/js/easybook.js"></script>
+
+
+  </body>
+
+</html>

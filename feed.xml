@@ -1,0 +1,821 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>夏文奇的博客</title>
+    <description>To be or not to be
+</description>
+    <link>http://xiawenqi.github.io/</link>
+    <atom:link href="http://xiawenqi.github.io/feed.xml" rel="self" type="application/rss+xml"/>
+    <pubDate>Wed, 04 Apr 2018 23:22:43 +0800</pubDate>
+    <lastBuildDate>Wed, 04 Apr 2018 23:22:43 +0800</lastBuildDate>
+    <generator>Jekyll v3.7.3</generator>
+    
+      <item>
+        <title>编写可测试代码</title>
+        <description>&lt;p&gt;#编写可测试的Javascript
+by REBECCA MURPHEY
+原文地址： &lt;a href=&quot;http://alistapart.com/article/writing-testable-javascript&quot; title=&quot;writing testable javascript&quot;&gt;writing-testable-javascript&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;我们都有过这样的经验：写几行Javscript代码来实现一个小功能，然后随着需求变化变成了十几行，然后二十几行，然后更多。在这个过程中，函数的参数越来越多，条件判断的分支也越来越多。然后有一天，代码出了问题，我们开始从一堆杂乱的代码中去找bug。&lt;/p&gt;
+
+&lt;p&gt;当我们要求客户端代码执行越来越多的功能时 –实际上，现在整个应用程序很大一部分都是在客户端实现的– 有两件事是可以确定的。1.我们无法通过敲敲键盘， 点点鼠标， 就确保功能无误， 而要通过自动化测试确保代码的正确性。2. 为了让代码便于自动化测试，或许我们需要稍微改变下写代码的方式。&lt;/p&gt;
+
+&lt;p&gt;虽然都知道自动化测试很好，但是现在大部分都只能实现集成测试。集成测试可以确保系统整体运行正常，但是无法确保单元功能正常。&lt;/p&gt;
+
+&lt;p&gt;这就需要我们编写单元测试了。而编写单元测试会一直纠结直到我们开始&lt;em&gt;编写可测试的JavaScript&lt;/em&gt;。&lt;/p&gt;
+
+&lt;p&gt;##单元VS集成： 区别在哪？&lt;/p&gt;
+
+&lt;p&gt;编写集成测试代码通常都非常直接：我们写代码来描述用户应该输入什么，然后他又应该看见什么。
+&lt;a href=&quot;http://docs.seleniumhq.org/&quot;&gt;Selenium&lt;/a&gt;是一个流行的自动化浏览器测试工具。&lt;a href=&quot;https://github.com/jnicklas/capybara&quot;&gt;Capybara&lt;/a&gt;让Ruby下的Selenium非常好用。 针对许多其他的语言也有其专门的工具。&lt;/p&gt;
+
+&lt;p&gt;这里是针对一个搜索引擎一个模块的集成测试：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;def test_search
+  fill_in('q', :with =&amp;gt; 'cat')
+  find('.btn').click
+  assert( find('#results li').has_content?('cat'), 'Search results are shown' )
+  assert( page.has_no_selector?('#results li.noresults'), 'No results is not shown' )
+end
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;与集成测试关注的是用户和程序的交互相比，单元测试仅仅关注小段代码的行为：&lt;/p&gt;
+&lt;blockquote&gt;
+  &lt;p&gt;当我传递给一个函数一定的参数时，我有没有获得期望的返回值？&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;用传统方式写的代码可能会非常难写对应的单元测试用例– 而且很难维护，调试，扩展。但是如果我们写代码时已经构思好了将要写的单元测试， 我们可能会发现不仅编写单元测试变得很容易，代码质量也会随之提高！&lt;/p&gt;
+
+&lt;p&gt;要知道为什么我这么说，我们先看个例子：&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://d.alistapart.com/375/app.png&quot; alt=&quot;Srchr&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;当用户输入一个搜索词时，程序会发送一个XHR请求到服务器获取相应数据。服务器返回了JSON格式的数据后，客户端就会解析数据并且用模板展示在页面上。用户可以点击一条搜索结果来表明他“喜欢(likes)”该结果，当该事件发生时，他Like的人名会被添加到右侧的Like列表上。&lt;/p&gt;
+
+&lt;p&gt;一个“传统”的JavaScript实现方式可能是这个样子的：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var tmplCache = {};
+
+function loadTemplate (name) {
+  if (!tmplCache[name]) {
+    tmplCache[name] = $.get('/templates/' + name);
+  }
+  return tmplCache[name];
+}
+
+$(function () {
+
+  var resultsList = $('#results');
+  var liked = $('#liked');
+  var pending = false;
+
+  $('#searchForm').on('submit', function (e) {
+    e.preventDefault();
+
+    if (pending) { return; }
+
+    var form = $(this);
+    var query = $.trim( form.find('input[name=&quot;q&quot;]').val() );
+
+    if (!query) { return; }
+
+    pending = true;
+
+    $.ajax('/data/search.json', {
+      data : { q: query },
+      dataType : 'json',
+      success : function (data) {
+        loadTemplate('peopledetailed.tmpl').then(function (t) {
+          var tmpl = _.template(t);
+          resultsList.html( tmpl({ people : data.results }) );
+          pending = false;
+        });
+      }
+    });
+
+    $('&amp;lt;li&amp;gt;', {
+      'class' : 'pending',
+      html : 'Searching &amp;amp;hellip;'
+    }).appendTo( resultsList.empty() );
+  });
+
+  resultsList.on('click', '.like', function (e) {
+    e.preventDefault();
+    var name = $(this).closest('li').find('h2').text();
+    liked.find('.noresults').remove();
+    $('&amp;lt;li&amp;gt;', { text: name }).appendTo(liked);
+  });
+
+});
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;我的好友&lt;a href=&quot;https://twitter.com/ajpiano&quot;&gt; Adam Sontag &lt;/a&gt;称之为&lt;em&gt;任意冒险&lt;/em&gt;代码–在任意一行代码我们可能会执行展现，数据操作，交互 或者状态维护等任意操作。天知道！针对这种代码写集成测试很简单，但是单元功能难以测试。&lt;/p&gt;
+
+&lt;p&gt;让单元测试变得困难的包括以下四点：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;结构松散； 几乎全部操作都发生在 &lt;code class=&quot;highlighter-rouge&quot;&gt;$(document).ready()&lt;/code&gt; 的回调函数中， 这是个匿名函数，没有接口可供测试。&lt;/li&gt;
+  &lt;li&gt;复杂的函数； 如果一个函数超过10行–如同一个提交处理函数–那么很可能它要执行的操作过多。&lt;/li&gt;
+  &lt;li&gt;隐藏起来或者共享的程序状态； 例如 &lt;code class=&quot;highlighter-rouge&quot;&gt;pending &lt;/code&gt; 是在闭包中的变量，那就无法测试pending这个状态是不是正确的。&lt;/li&gt;
+  &lt;li&gt;紧密的耦合； 例如 一个 &lt;code class=&quot;highlighter-rouge&quot;&gt;$.ajax &lt;/code&gt; 成功（success）的回调函数不应该直接操作DOM。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;##组织代码&lt;/p&gt;
+
+&lt;p&gt;解决这个问题的第一步是让我们的代码更少的像面条一样扭在一起， 将其按功能分解到不同的区域：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;数据展现和用户交互&lt;/li&gt;
+  &lt;li&gt;数据管理和持久化&lt;/li&gt;
+  &lt;li&gt;程序状态&lt;/li&gt;
+  &lt;li&gt;设置和粘合代码来把所有代码整合在一起&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;在上面的实现中，这四类操作交织在一起，在这行我们正在进行页面呈现， 两行之后就开始和服务器通信。&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://d.alistapart.com/375/code-lines.png&quot; alt=&quot;Code Lines&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;虽然我们可以写集成测试–我们也应该写–写单元测试却非常难。在功能性测试中，我们作出诸如“当用户搜索关键词，她应当看见正确的结果”的断言，却无法更加具体。如果哪里出了问题，就只能跟踪代码找到错误的地方，而功能性测试在这时候没什么用。&lt;/p&gt;
+
+&lt;p&gt;重新思考如何编写代码可以帮我们编写单元测试以更好的找到出bug的地方， 而且这样写出的代码也更容易复用，维护和扩展。&lt;/p&gt;
+
+&lt;p&gt;我们的新代码会遵守以下原则&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;将一组操作作为一个独立的对象，只执行四种功能之一，并且一个对象完全不知道其他对象的结构， 以此避免交织的代码。&lt;/li&gt;
+  &lt;li&gt;支持可配置性， 而非将东西都写死。以免我们为了测试而复制整个HTML环境&lt;/li&gt;
+  &lt;li&gt;保持目标代码的简洁，这有助于我们保持测试简单及代码可读&lt;/li&gt;
+  &lt;li&gt;用构造函数来创建实例。这让就可以为了测试的需求“干净地”复制每段代码。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;首先我们要先找到从哪里开始分解代码。有三块用来做展现和交互： 搜索表单，搜索结果，以及“Like框”&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;http://d.alistapart.com/375/appviews.png&quot; alt=&quot;Application Views&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;同样会有一块代码用来从服务器取数据，以及另外一块用来将其他模块组织在一起。&lt;/p&gt;
+
+&lt;p&gt;先看看代码中最简单的Like框。在初始的版本中，这些代码用来更新Like框：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var liked = $('#liked');
+
+var resultsList = $('#results');
+
+
+// ...
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.find( '.noresults' ).remove();
+
+  $('&amp;lt;li&amp;gt;', { text: name }).appendTo(liked);
+
+});
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;搜索结果模块完全和Like框的代码纠缠在了一起，需要知道它的标签结构信息。 一个更优雅的， 更易测试的方法是创建一个Likes对象用来执行和Like框相关的DOM操作：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var Likes = function (el) {
+  this.el = $(el);
+  return this;
+};
+
+Likes.prototype.add = function (name) {
+  this.el.find('.noresults').remove();
+  $('&amp;lt;li&amp;gt;', { text: name }).appendTo(this.el);
+};
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这段代码提供了一个用来创建新Like框实例的构造函数。这个实例会有个&lt;code class=&quot;highlighter-rouge&quot;&gt;.add()&lt;/code&gt;方法用来添加搜索结果。这样我们就可以给它写单元测试了。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;
+var ul;
+
+setup(function(){
+  ul = $('&amp;lt;ul&amp;gt;&amp;lt;li class=&quot;noresults&quot;&amp;gt;&amp;lt;/li&amp;gt;&amp;lt;/ul&amp;gt;');
+});
+
+test('constructor', function () {
+  var l = new Likes(ul);
+  assert(l);
+});
+
+test('adding a name', function () {
+  var l = new Likes(ul);
+  l.add('Brendan Eich');
+
+  assert.equal(ul.find('li').length, 1);
+  assert.equal(ul.find('li').first().html(), 'Brendan Eich');
+  assert.equal(ul.find('li.noresults').length, 0);
+});
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;没那么难吧？ 我们使用&lt;a href=&quot;http://visionmedia.github.io/mocha/&quot;&gt;Mocha&lt;/a&gt;作为测试框架， &lt;a href=&quot;http://chaijs.com/&quot;&gt;Chai&lt;/a&gt;作为测试库。 Mocha提供了&lt;code class=&quot;highlighter-rouge&quot;&gt;test&lt;/code&gt;和&lt;code class=&quot;highlighter-rouge&quot;&gt;setup&lt;/code&gt;函数; Chai提供了assert函数。还有许多其他可选的测试框架和库， 但这里为了解说， 这两个库够了。在实践中可以选择最适合自己和项目的: 除了Mocha， &lt;a href=&quot;http://qunitjs.com/&quot;&gt;Qunit&lt;/a&gt;很流行， &lt;a href=&quot;http://theintern.io/&quot;&gt;Intern&lt;/a&gt;显示了很多潜力。&lt;/p&gt;
+
+&lt;p&gt;我们的测试代码先创建了一个用来作为Like框容器的ul。 然后执行了两个测试： 一个用来测试我们是否成功创建了Like框，另一个用来测试 &lt;code class=&quot;highlighter-rouge&quot;&gt;.add()&lt;/code&gt; 的正确性。 有了这些测试，我们就可以放心地重构Like框相关的代码， 并且知道有没有对现有功能造成破坏。&lt;/p&gt;
+
+&lt;p&gt;现在我们的客户端代码可以改成这样：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var liked = new Likes('#liked');
+var resultsList = $('#results');
+
+
+
+// ...
+
+
+
+resultsList.on('click', '.like', function (e) {
+  e.preventDefault();
+
+  var name = $(this).closest('li').find('h2').text();
+
+  liked.add(name);
+});
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;搜索结果模块要比Like框复杂， 但我们也可以尝试重构。 如同我们在Like框上添加了个&lt;code class=&quot;highlighter-rouge&quot;&gt;add()&lt;/code&gt;方法一样，我们需要用来和搜索结果进行交互的方法。 我们想要一个方法用来添加新结果，还有一个方法可以通知程序其他部分搜索结果发生了什么–例如，有人Like了一个搜索结果。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var SearchResults = function (el) {
+  this.el = $(el);
+  this.el.on( 'click', '.btn.like', _.bind(this._handleClick, this) );
+};
+
+SearchResults.prototype.setResults = function (results) {
+  var templateRequest = $.get('peopledetailed.tmpl');
+  templateRequest.then( _.bind(this._populate, this, results) );
+};
+
+SearchResults.prototype._handleClick = function (evt) {
+  var name = $(evt.target).closest('li.result').attr('dataname');
+  $(document).trigger('like', [ name ]);
+};
+
+SearchResults.prototype._populate = function (results, tmpl) {
+  var html = _.template(tmpl, { people: results });
+  this.el.html(html);
+};
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;现在， 我们原来的代码就可以改成：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var liked = new Likes('#liked');
+var resultsList = new SearchResults('#results');
+
+
+// ...
+
+
+$(document).on('like', function (evt, name) {
+  liked.add(name);
+})
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;-这比原来的实现简洁多了， 因为我们将&lt;code class=&quot;highlighter-rouge&quot;&gt;document&lt;/code&gt;作为一个传递消息的枢纽，组件之间就可以在不知道彼此结构的情况下进行通信。（在一个商业的APP中，我们一般会使用诸如&lt;a href=&quot;http://backbonejs.org/&quot;&gt;Backbone&lt;/a&gt;或者是&lt;a href=&quot;https://github.com/tildeio/rsvp.js&quot;&gt;RSVP&lt;/a&gt;这样的框架来管理事件，这里我们用document来保持简洁。）我们也将复杂的操作–例如从被喜欢的搜索结果中找出人名–交给SearchResults对象，而非让它把代码结构整的乱七八糟。最好的是：现在我们同样可以为SearchResults编写单元测试了：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var ul;
+var data = [ /* fake data here */ ];
+
+setup(function () {
+  ul = $('&amp;lt;ul&amp;gt;&amp;lt;li class=&quot;noresults&quot;&amp;gt;&amp;lt;/li&amp;gt;&amp;lt;/ul&amp;gt;');
+});
+
+test('constructor', function () {
+  var sr = new SearchResults(ul);
+  assert(sr);
+});
+
+test('display received results', function () {
+  var sr = new SearchResults(ul);
+  sr.setResults(data);
+
+  assert.equal(ul.find('.noresults').length, 0);
+  assert.equal(ul.find('li.result').length, data.length);
+  assert.equal(
+    ul.find('li.result').first().attr('dataname'),
+    data[0].name
+  );
+});
+
+test('announce likes', function() {
+  var sr = new SearchResults(ul);
+  var flag;
+  var spy = function () {
+    flag = [].slice.call(arguments);
+  };
+
+  sr.setResults(data);
+  $(document).on('like', spy);
+
+  ul.find('li').first().find('.like.btn').click();
+
+  assert(flag, 'event handler called');
+  assert.equal(flag[1], data[0].name, 'event handler receives data' );
+});
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;和服务器的通信怎样模块化同样值得深思。原来是直接调用一个&lt;code class=&quot;highlighter-rouge&quot;&gt;$.ajax()&lt;/code&gt;请求, 而且回调函数也在直接对DOM进行操作：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$.ajax('/data/search.json', {
+  data : { q: query },
+  dataType : 'json',
+  success : function( data ) {
+    loadTemplate('peopledetailed.tmpl').then(function(t) {
+      var tmpl = _.template( t );
+      resultsList.html( tmpl({ people : data.results }) );
+      pending = false;
+    });
+  }
+});
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;同样地， 很难为这块代码编写单元测试， 短短的几行执行了太多的操作。我们将数据部分重构为一个对象：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var SearchData = function () { };
+
+SearchData.prototype.fetch = function (query) {
+  var dfd;
+
+  if (!query) {
+    dfd = $.Deferred();
+    dfd.resolve([]);
+    return dfd.promise();
+  }
+
+  return $.ajax( '/data/search.json', {
+    data : { q: query },
+    dataType : 'json'
+  }).pipe(function( resp ) {
+    return resp.results;
+  });
+};
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;现在， 可以修改获取数据部分的实现了：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var resultsList = new SearchResults('#results');
+
+var searchData = new SearchData();
+
+// ...
+
+searchData.fetch(query).then(resultsList.setResults);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;我们再一次对代码成功进行了简化， 并且将数据操作的复杂性封装在了SearchData对象里， 而非放在主程序中。
+现在可以测试搜索接口了， 尽管在测试时有一些需要注意的地方：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;我们不想直接和服务器进行交互–否则就要重新进行集成测试， 而且我们都是负责任的程序员， 所以服务器的代码肯定被测试过了，是吧？ 相应地， 我们“模仿”和服务器的交互，通过&lt;a href=&quot;http://sinonjs.org/&quot;&gt;Sinon&lt;/a&gt;。&lt;/li&gt;
+  &lt;li&gt;我们同样要测试一些极端情况， 例如空字符串搜索。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;test('constructor', function () {
+  var sd = new SearchData();
+  assert(sd);
+});
+
+suite('fetch', function () {
+  var xhr, requests;
+
+  setup(function () {
+    requests = [];
+    xhr = sinon.useFakeXMLHttpRequest();
+    xhr.onCreate = function (req) {
+      requests.push(req);
+    };
+  });
+
+  teardown(function () {
+    xhr.restore();
+  });
+
+  test('fetches from correct URL', function () {
+    var sd = new SearchData();
+    sd.fetch('cat');
+
+    assert.equal(requests[0].url, '/data/search.json?q=cat');
+  });
+
+  test('returns a promise', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+
+    assert.isFunction(req.then);
+  });
+
+  test('no request if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    assert.equal(requests.length, 0);
+  });
+
+  test('return a promise even if no query', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+
+    assert.isFunction( req.then );
+  });
+
+  test('no query promise resolves with empty array', function () {
+    var sd = new SearchData();
+    var req = sd.fetch();
+    var spy = sinon.spy();
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], []);
+  });
+
+  test('returns contents of results property of the response', function () {
+    var sd = new SearchData();
+    var req = sd.fetch('cat');
+    var spy = sinon.spy();
+
+    requests[0].respond(
+      200, { 'Contenttype': 'text/json' },
+      JSON.stringify({ results: [ 1, 2, 3 ] })
+    );
+
+    req.then(spy);
+
+    assert.deepEqual(spy.args[0][0], [ 1, 2, 3 ]);
+  });
+});
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;出于简洁性的考虑， 我没有讨论搜索表单的重构， 也简化了些其他的重构和测试。 但是你可以在&lt;a href=&quot;https://github.com/rmurphey/testable-javascript&quot;&gt;这里&lt;/a&gt;看到完整的版本。&lt;/p&gt;
+
+&lt;p&gt;当我们用可测试的js模式重写了程序之后， 一切变得简洁多了：&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(function() {
+  var pending = false;
+
+  var searchForm = new SearchForm('#searchForm');
+  var searchResults = new SearchResults('#results');
+  var likes = new Likes('#liked');
+  var searchData = new SearchData();
+
+  $(document).on('search', function (event, query) {
+    if (pending) { return; }
+
+    pending = true;
+
+    searchData.fetch(query).then(function (results) {
+      searchResults.setResults(results);
+      pending = false;
+    });
+
+    searchResults.pending();
+  });
+
+  $(document).on('like', function (evt, name) {
+    likes.add(name);
+  });
+});
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;比获得简洁的代码更重要的是， 现在我们完整的测试了代码。  这样我们就可以放心大胆地重构代码而不用怕会破坏之前写好的成果。 当出现新情况时， 甚至可以编写新的
+测试用例， 然后再写相应的代码。&lt;/p&gt;
+
+&lt;p&gt;##从长期来说 测试让生活更美好&lt;/p&gt;
+
+&lt;p&gt;可能你读到这里，然后突然出现个问题： “等一等！ 你想让我为了同样的功能写更多的代码？”&lt;/p&gt;
+
+&lt;p&gt;事实是， 当你在互联网上进行创造时， 有些东西是躲不开的。你会花时间去设计解决问题的方法。你会测试你的解决方案：  或者是通过在浏览器里点击查看反应， 或者是通过自动化测试， 或者是–可怕地–让用户在生产环境中替你做测试。你会修改你的代码， 而其他人会使用你的代码。 而最终： 你的代码会有bug， 无论写了多少测试。&lt;/p&gt;
+
+&lt;p&gt;关于测试的一个事实是尽管在开始时会多花费点时间，长远来看它却可以节省时间。当你的测试用例发现了一个bug时，当你有一个运行的系统证明你的bug修改确实有用时，你会觉得庆幸。&lt;/p&gt;
+
+&lt;p&gt;##参考资料&lt;/p&gt;
+
+&lt;p&gt;这篇文章讨论了Javascript测试的一些基本知识。但是如果想了解更多，可以参考：&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;http://lanyrd.com/2012/fullfrontal/sztqh/&quot;&gt;我的报告&lt;/a&gt;, 来自2012年伦敦Brighton的Full Frontal会议。&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;http://gruntjs.com/&quot;&gt;Grunt&lt;/a&gt;用来进行自动化测试和许多其他任务的工具。&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;http://www.amazon.com/TestDriven-JavaScript-Development-Developers-Library/dp/0321683919/ref=sr_1_1?ie=UTF8&amp;amp;qid=1366506174&amp;amp;sr=8-1&amp;amp;keywords=test+driven+javascript+development&quot;&gt;编写可测试的Javascript代码&lt;/a&gt; 作者Christian Johansen， Sinon库的作者。这是一本关于JS测试的紧凑但信息丰富的书。&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;##关于作者
+###Rebecca Murphey
+Rebecca Murphey is a senior software engineer at Bazaarvoice and a frequent speaker on the topics of code organization and best practices at conferences around the world. She’s also the creator of the TXJS conference, the author of the learning site jQuery Fundamentals, a contributor to the jQuery Cookbook from O’Reilly Media, and a technical reviewer for Effective JavaScript by Dave Herman. She blogs at &lt;a href=&quot;http://lanyrd.com/2012/full-frontal/sztqh/&quot;&gt;rmurphey.com&lt;/a&gt;, tweets as &lt;a href=&quot;https://twitter.com/rmurphey&quot;&gt;@rmurphey&lt;/a&gt;, and lives in Durham, NC, with her partner.&lt;/p&gt;
+</description>
+        <pubDate>Wed, 04 Apr 2018 00:00:00 +0800</pubDate>
+        <link>http://xiawenqi.github.io/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81</link>
+        <guid isPermaLink="true">http://xiawenqi.github.io/archivers/%E7%BC%96%E5%86%99%E5%8F%AF%E6%B5%8B%E8%AF%95%E4%BB%A3%E7%A0%81</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>前端代码风格</title>
+        <description>&lt;h1 id=&quot;前端代码风格建议&quot;&gt;前端代码风格建议&lt;/h1&gt;
+
+&lt;h2 id=&quot;为什么要有代码风格&quot;&gt;为什么要有代码风格&lt;/h2&gt;
+
+&lt;p&gt;一门计算机语言并不仅仅是计算机去执行的一种方式,更重要的,它是一种表述有关方法学的思想的新颖的形式化媒介。程序必须写出来是供人们阅读的, 偶尔地送到计算机上去执行。在代码的生命周期中, 初期的开发只占20%, 另外的80%都在维护。一段代码经常会被反复阅读,调用,修改, 重构, 这些时候我们写的代码都会被阅读。所以代码的可读性是衡量代码质量的重要属性。 在编写代码的过程中, 最好时刻保持这样的意识: 这段代码我自己在几个星期之后还能不能看得懂了, 别人能不能读懂这些代码？&lt;/p&gt;
+
+&lt;p&gt;代码风格很大的决定了代码的可读性。 整个项目中应该保持代码的统一风格: 这样读者就可以集中精力关注代码做了什么事情, 而非他是怎么样写代码的。&lt;/p&gt;
+
+&lt;p&gt;一般来说, &lt;strong&gt;遵循什么样的代码的风格并不重要, 例如操作符两端留不留空格, 字符串使用单引号还是双引号, 重要的是写之前看看周围的代码并保持一致&lt;/strong&gt;: 如果别人的运算符两边都有空格, 就在操作符两边加上空格, 如果别人的字符串是用的单引号, 就使用单引号。&lt;/p&gt;
+
+&lt;h2 id=&quot;js文件&quot;&gt;js文件&lt;/h2&gt;
+&lt;p&gt;js代码都写在.js文件里面。 除非必须, 避免在页面中直接使用script标签。&lt;/p&gt;
+
+&lt;h2 id=&quot;缩进&quot;&gt;缩进&lt;/h2&gt;
+&lt;p&gt;使用四空格缩进。用tab的时候各个操作系统不统一。可以通过文本编辑器配置。&lt;/p&gt;
+
+&lt;h2 id=&quot;行长度&quot;&gt;行长度&lt;/h2&gt;
+&lt;p&gt;避免行长度超过80个字符。当语句的长度超过80个字符时, 分解语句。在运算符后面折行, 或者在逗号后面更好。折后的行应该缩进8个字符。&lt;/p&gt;
+
+&lt;h2 id=&quot;注释&quot;&gt;注释&lt;/h2&gt;
+&lt;p&gt;多写注释。方法名写的不够清晰的注明方法的作用。分支如果别人可能读不懂, 说明每个分支的情况。变量, 特别是全局变量(避免全局变量)可能造成别人读不懂的时候注释说明。&lt;/p&gt;
+
+&lt;p&gt;维护注释。代码重构了之后如果原来的注释和代码不一致了应及时维护, 和代码不一致的注释会造成更多疑惑。&lt;/p&gt;
+
+&lt;p&gt;确保注释有意义。告诉读者（很多时候是作者自己）他一眼看不出来的信息, 帮读者读懂代码。不用这种注释浪费读者的时间:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;// 将i的值设为0
+i = 0; 
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;空格&quot;&gt;空格&lt;/h2&gt;
+&lt;p&gt;运算符两边保留空格&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;foo = bar + zoo;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;参数之间的逗号后插入一个空格,&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;callback(arg1, arg2);
+[elem1, elem2];
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;括号的开头和结尾不保留空格。&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;// 不采用这种空格方式
+callback( arg1, arg2 );
+[ elem1, elem2 ];
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;花括号&quot;&gt;花括号&lt;/h2&gt;
+&lt;p&gt;花括号开头在语句当前行, 不另起一行&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;// 错误
+function foo()
+{
+
+}
+// 正确
+if(test) {
+	
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;由于Ken Tompsen的B语言编译器(C语言前身)允许两种格式都编译通过， 大家一直在争论花括号应该在当前行还是另起一行开始。 如果Ken当年规定只有一种语法是正确的, 另外一种写法是语法错误, 那程序员的世界肯定会安宁许多。K&amp;amp;R C里的demo花括号都是另起一行, 所以很多语言建议另起一行。 但是JS里建议把花括号的开头保留在这一行:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;// 错误！！！
+return
+{
+	key: value
+};
+
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;由于分号的自动补全, 这样的return的是undefined。 所以return后的花括号开头必须在当前行。 为了程序中花括号风格保持一致， 建议花括号都从当前行开始。&lt;/p&gt;
+
+&lt;h2 id=&quot;字符串&quot;&gt;字符串&lt;/h2&gt;
+&lt;p&gt;优先单引号于双引号&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;'&quot;Hey&quot;, he said, &quot;how are you?&quot;'
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;除非必须, 避免在js中用字符串拼接html, 用script标签。&lt;/p&gt;
+
+&lt;p&gt;纯Html标签用
+&lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;script type=&quot;text/html&quot;&amp;gt;&lt;/code&gt;
+模板用
+&lt;code class=&quot;highlighter-rouge&quot;&gt;&amp;lt;script type=&quot;text/template&quot;&amp;gt;&lt;/code&gt;&lt;/p&gt;
+
+&lt;p&gt;这两个有什么区别吗？ 没有。 只要不是type=”text/javascript”的都不会解析成js, 这里只是作为字符串的载体。&lt;/p&gt;
+
+&lt;p&gt;另外, 引用脚本文件的标签也不该加上type=”text/javascript”。 这里是指定资源的MIME类型, 但是MIME应该由服务器指定, 而非script标签。&lt;/p&gt;
+
+&lt;h2 id=&quot;变量申明&quot;&gt;变量申明&lt;/h2&gt;
+&lt;p&gt;Js中的变量的作用域是以function为作用域, 而不是块。 (推荐阅读&lt;a href=&quot;http://www.adequatelygood.com/JavaScript-Scoping-and-Hoisting.html&quot;&gt;变量提升&lt;/a&gt;)&lt;/p&gt;
+
+&lt;p&gt;所有未声明而直接使用的变量都会变成全局变量。&lt;/p&gt;
+
+&lt;p&gt;在function的第一个语句声明变量, 使用单var模式:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var x, y, z;
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;避免使用全局变量,全局变量让程序很难阅读。 如果一定要用, 显式的初始化和使用:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;window.gloablVariable = { key: 'initial value' };
+window.gloablVariable.key = 'altered value';
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;函数声明&quot;&gt;函数声明&lt;/h2&gt;
+&lt;p&gt;避免函数表达式, 容易和变量混淆。 尽量函数声明:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;function foo(){
+
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;除非这种情况:&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;var bar = (function(){
+	var tmp = '';
+	
+	return function(x, y){
+		
+	};
+})();
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h2 id=&quot;命名naming&quot;&gt;命名（Naming）&lt;/h2&gt;
+&lt;p&gt;用英文单词作为函数名和变量名, 不要拼音。&lt;/p&gt;
+
+&lt;p&gt;统一驼峰规则。普通变量用小驼峰： thisIsANormalVariable
+构造函数用大驼峰： ThisIsAClass。 因为除了这一点, 我们没办法区分构造函数和普通function&lt;/p&gt;
+
+&lt;p&gt;变量使用修饰语+名词: paintedColor,  firstElement。&lt;/p&gt;
+
+&lt;p&gt;数组使用复数:  installedKeys。&lt;/p&gt;
+
+&lt;p&gt;函数动词开头: renderPage, getKeys, setName&lt;/p&gt;
+
+&lt;p&gt;函数返回布尔值的is开头: isIntalled, isEmpty(注意是函数不是变量, 变量此处叫installed, empty)。&lt;/p&gt;
+
+&lt;p&gt;确保变量名不增加读者的阅读成本。&lt;/p&gt;
+
+&lt;h3 id=&quot;return语句&quot;&gt;return语句&lt;/h3&gt;
+&lt;p&gt;return的值不用小括号包起来。 返回值应该在return的同一行, 避免分号插入。&lt;/p&gt;
+
+&lt;h3 id=&quot;if语句&quot;&gt;if语句&lt;/h3&gt;
+&lt;p&gt;如果在else的后面没有更多的代码, 可以考虑提前返回, 精简代码。例如值校验。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;if(value === '') {
+	// logic
+	return;
+}
+if(value &amp;gt; MAX) {
+	return;
+}
+// formal logic
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;避免这样写:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;if(value === '') {
+	// …
+} else {
+	if(value &amp;gt; MAX) {
+		// …
+	} else {
+		// formal logic
+		// 嵌套过深
+	}
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;switch语句&quot;&gt;Switch语句&lt;/h3&gt;
+&lt;p&gt;分支不需要缩进。case不是语句, 所以可以不遵循语句的缩进规则, 也可以减少缩进。
+每个分支都以break, return, 或者是throw语句结尾, 处理后及时跳出, 否则至少会被default分支捕捉到。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;switch (expression) {
+case expression:
+    statements
+default:
+    statements
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;h3 id=&quot;try语句&quot;&gt;Try语句&lt;/h3&gt;
+&lt;p&gt;采用如下形式&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;try {
+    statements
+} catch (variable) {
+    statements
+}
+
+try {
+    statements
+} catch (variable) {
+    statements
+} finally {
+    statements
+}
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;关于异常: 异常是程序员的好朋友, 它帮我们排除错误。 除非清楚要捕捉的异常是什么, 否则不应该用catch把异常吞了。 有异常说明有错误, 利用异常栈找出代码中的错误。&lt;/p&gt;
+
+&lt;p&gt;如果想保证API以正确的方式被调用, 可以在参数不正确的时候把异常throw出来。&lt;/p&gt;
+
+&lt;p&gt;总之, throw异常的时候开放一点, 但是在catch的时候保守一点。&lt;/p&gt;
+
+&lt;h3 id=&quot;continu语句&quot;&gt;Continu语句&lt;/h3&gt;
+&lt;p&gt;会混淆控制流, 避免使用&lt;/p&gt;
+
+&lt;h3 id=&quot;with语句&quot;&gt;With语句&lt;/h3&gt;
+&lt;p&gt;不用&lt;/p&gt;
+
+&lt;h2 id=&quot;其他建议&quot;&gt;其他建议&lt;/h2&gt;
+
+&lt;h3 id=&quot;和&quot;&gt;{}和[]&lt;/h3&gt;
+&lt;p&gt;用{} 而非new Object(); 用[] 而非 new Array()。&lt;/p&gt;
+
+&lt;h3 id=&quot;赋值语句&quot;&gt;赋值语句&lt;/h3&gt;
+&lt;p&gt;避免在条件语句中赋值。&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;if (a = b) {
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;这是想赋值还是本来想写&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;if (a == b) {
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;漏了等号？&lt;/p&gt;
+
+&lt;h3 id=&quot;-和-&quot;&gt;=== 和 !==&lt;/h3&gt;
+&lt;p&gt;用===和！== 。 == 和！= 不比较类型, 会试图进行类型转换。&lt;/p&gt;
+
+&lt;h2 id=&quot;参考文档&quot;&gt;参考文档&lt;/h2&gt;
+&lt;ol&gt;
+  &lt;li&gt;Douglas Crockford, &lt;a href=&quot;http://javascript.crockford.com/code.html]&quot;&gt;Code Conventions for the JavaScript Programming Language&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Sun, &lt;a href=&quot;http://javascript.crockford.com/javacodeconventions.pdf&quot;&gt;Java Code Conventions&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Addy Osmani, &lt;a href=&quot;http://addyosmani.com/blog/javascript-style-guides-and-beautifiers/&quot;&gt;JavaScript Style Guides And Beautifiers&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Google, &lt;a href=&quot;https://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml&quot;&gt;Google JavaScript Style Guide&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;jQuery community, &lt;a href=&quot;https://contribute.jquery.org/style-guide/js/&quot;&gt;jQuery JavaScript Style Guide&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;Harold Abelson and Gerald Jay Sussman, &lt;a href=&quot;http://mitpress.mit.edu/sicp/full-text/book/book-Z-H-7.html&quot;&gt;SICP, Preface to the First Edition&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+</description>
+        <pubDate>Wed, 04 Apr 2018 00:00:00 +0800</pubDate>
+        <link>http://xiawenqi.github.io/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC</link>
+        <guid isPermaLink="true">http://xiawenqi.github.io/archivers/%E5%89%8D%E7%AB%AF%E4%BB%A3%E7%A0%81%E9%A3%8E%E6%A0%BC</guid>
+        
+        
+      </item>
+    
+      <item>
+        <title>Jquery事件命名空间</title>
+        <description>&lt;p&gt;#jQuery事件中的命名空间&lt;/p&gt;
+
+&lt;p&gt;使用jQuery绑定事件非常简单， 调用on就可以了， 绑定多个事件也很方便。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$('#element')
+  .on('click', doSomething)
+  .on('click', doSomethingElse);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;后绑定的事件不会重写之前的， 所以doSomething和doSomethingElse都会执行。
+有时可能会因为各种原因(例如节省内存或者验证条件不合法禁止操作)需要移除事件也简单，&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$('#element').off('click');
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;简单的off就可以移除。 但是要注意的是这样会删除#element上的所有的事件， 但是其实我们只想删除一个事件。如果有事件出发的function的引用也简单&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$('#element').off('click', doSomething);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;这样就只有doSomething被移除了， 当#elemgnt上触发了click事件时，doSomething不会执行， 但是doSomethingElse还是会执行。但是实际场景中经常会没有对应function的引用。例如是通过匿名方法定义的事件&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$('#element').on('click', function () {
+	console.log('doSomething');
+});
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;匿名函数绑定事件是现实中非常常用的一种方法。另一种常见的情况是事件是在另一个作用域或者文件中绑定的， 这时候一般不容易获取原函数的引用。&lt;/p&gt;
+
+&lt;p&gt;jQeury提供的解决方法是通过&lt;a href=&quot;https://api.jquery.com/event.namespace/&quot;&gt;命名空间&lt;/a&gt;。&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(&quot;#element&quot;)
+  .on(&quot;click.someNamespace&quot;, function() { 
+     console.log(&quot;doSomething&quot;);
+   });
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;现在就可以直接用off来取消这个事件了&lt;/p&gt;
+
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(&quot;#element&quot;).off(&quot;click.someNamespace&quot;);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;event.namespace的另一个用法是trigger：&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(&quot;#element&quot;).trigger(&quot;click.someNamespace&quot;);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;在加上namespace后， 原来的事件还是可以正常移除和触发&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(&quot;#element&quot;).off(&quot;click&quot;); // 移除所有的click事件
+$(&quot;#element&quot;).trigger(&quot;click&quot;); // 触发所有的click事件
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;p&gt;可以将namespace理解为class。事实上， 和class一样， 你可以使用多个namespace:&lt;/p&gt;
+&lt;div class=&quot;highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;$(&quot;#element&quot;).on('click.namespace1.namespace2', ...);
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+</description>
+        <pubDate>Wed, 04 Apr 2018 00:00:00 +0800</pubDate>
+        <link>http://xiawenqi.github.io/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4</link>
+        <guid isPermaLink="true">http://xiawenqi.github.io/archivers/jQuery%E4%BA%8B%E4%BB%B6%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4</guid>
+        
+        
+      </item>
+    
+  </channel>
+</rss>
